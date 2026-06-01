@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Button, Card } from "@heroui/react";
 import {
   fetchCategories,
   fetchItems,
@@ -307,15 +309,21 @@ function ItemModal({
   onClose,
   onAdd,
   cartQty,
+  allItems,
+  onSelectItem,
 }: {
   item: MenuItem | null;
   isMobile: boolean;
   onClose: () => void;
   onAdd: (i: MenuItem) => void;
   cartQty: number;
+  allItems: MenuItem[];
+  onSelectItem: (item: MenuItem) => void;
 }) {
   const [added, setAdded] = useState(false);
   const [imgErr, setImgErr] = useState(false);
+  const [direction, setDirection] = useState<"next" | "prev">("next");
+  
   useEffect(() => {
     setAdded(false);
     setImgErr(false);
@@ -325,6 +333,18 @@ function ItemModal({
   const unavail = !item.is_available;
   const showReal = item.has_image && item.image_url && !imgErr;
 
+  /* ── Find next and prev items in same category ── */
+  const sameCategory = allItems.filter((i) => i.category === item.category);
+  const currentIdx = sameCategory.findIndex((i) => i.id === item.id);
+  const prevItem = currentIdx > 0 ? sameCategory[currentIdx - 1] : null;
+  const nextItem = currentIdx < sameCategory.length - 1 ? sameCategory[currentIdx + 1] : null;
+
+  const handleNavigate = (newItem: MenuItem | null) => {
+    if (!newItem) return;
+    setDirection(sameCategory.indexOf(newItem) > currentIdx ? "next" : "prev");
+    onSelectItem(newItem);
+  };
+
   const handleAdd = () => {
     if (unavail) return;
     onAdd(item);
@@ -332,9 +352,28 @@ function ItemModal({
     setTimeout(() => setAdded(false), 900);
   };
 
+  /* ── Swipe handlers ── */
+  const handleDragEnd = (event: any, info: any) => {
+    const swipeThreshold = 50;
+    if (info.offset.x > swipeThreshold && prevItem) {
+      handleNavigate(prevItem);
+    } else if (info.offset.x < -swipeThreshold && nextItem) {
+      handleNavigate(nextItem);
+    }
+  };
+
   /* ── shared inner content ── */
   const inner = (
-    <div
+    <motion.div
+      key={item.id}
+      initial={{ opacity: 0, x: direction === "next" ? 50 : -50 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: direction === "next" ? -50 : 50 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      drag
+      dragElastic={0.2}
+      dragConstraints={{ left: 0, right: 0 }}
+      onDragEnd={handleDragEnd}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -346,9 +385,7 @@ function ItemModal({
         width: isMobile ? "100%" : "90vw",
         maxHeight: isMobile ? "92vh" : "88vh",
         position: "relative",
-        animation: isMobile
-          ? "didSheetIn 0.33s cubic-bezier(0.32,0.72,0,1) both"
-          : "didModalIn 0.28s cubic-bezier(0.22,1,0.36,1) both",
+        cursor: "grab",
       }}
     >
       {/* Image zone — arched on desktop */}
@@ -386,6 +423,62 @@ function ItemModal({
                 : "didFloat 3.5s ease-in-out infinite",
             }}
           />
+        )}
+
+        {/* Navigation arrows (desktop) */}
+        {!isMobile && (
+          <>
+            {prevItem && (
+              <motion.button
+                onClick={() => handleNavigate(prevItem)}
+                style={{
+                  position: "absolute",
+                  left: 12,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  width: 40,
+                  height: 40,
+                  borderRadius: "50%",
+                  background: "rgba(26,71,49,0.85)",
+                  border: "none",
+                  color: B.cream,
+                  fontSize: 18,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  zIndex: 10,
+                }}
+              >
+                ←
+              </motion.button>
+            )}
+            {nextItem && (
+              <motion.button
+                onClick={() => handleNavigate(nextItem)}
+                style={{
+                  position: "absolute",
+                  right: 12,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  width: 40,
+                  height: 40,
+                  borderRadius: "50%",
+                  background: "rgba(26,71,49,0.85)",
+                  border: "none",
+                  color: B.cream,
+                  fontSize: 18,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  zIndex: 10,
+                }}
+              >
+                →
+              </motion.button>
+            )}
+          </>
         )}
 
         {/* top-right close on desktop */}
@@ -429,6 +522,24 @@ function ItemModal({
           }}
         >
           {CAT_EMOJI[item.category] ?? "🍽"} {item.category_name}
+        </div>
+
+        {/* Item counter */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: 10,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: `rgba(26,71,49,0.8)`,
+            color: B.cream,
+            borderRadius: 20,
+            padding: "4px 12px",
+            fontSize: 11,
+            fontWeight: 600,
+          }}
+        >
+          {currentIdx + 1} / {sameCategory.length}
         </div>
 
         {/* unavailable overlay */}
@@ -617,7 +728,7 @@ function ItemModal({
               : "افزودن به سبد 🛒"}
         </button>
       </div>
-    </div>
+    </motion.div>
   );
 
   /* ── mobile: bottom sheet ── */
@@ -645,7 +756,9 @@ function ItemModal({
             zIndex: 301,
           }}
         >
-          {inner}
+          <AnimatePresence mode="wait">
+            {inner}
+          </AnimatePresence>
         </div>
       </>
     );
@@ -667,7 +780,11 @@ function ItemModal({
           justifyContent: "center",
         }}
       >
-        <div onClick={(e) => e.stopPropagation()}>{inner}</div>
+        <div onClick={(e) => e.stopPropagation()}>
+          <AnimatePresence mode="wait">
+            {inner}
+          </AnimatePresence>
+        </div>
       </div>
     </>
   );
@@ -1034,7 +1151,6 @@ export default function Home() {
   /* data */
   const [categories, setCategories] = useState<Category[]>([]);
   const [allItems, setAllItems] = useState<MenuItem[]>([]);
-  const [items, setItems] = useState<MenuItem[]>([]);
   const [dataState, setDataState] = useState<DataState>("loading");
 
   /* ui */
@@ -1065,7 +1181,6 @@ export default function Home() {
       setCategories([...cats].sort((a, b) => a.order - b.order));
       const sorted = [...its].sort((a, b) => a.order - b.order);
       setAllItems(sorted);
-      setItems(sorted);
       setDataState(live ? "live" : "mock");
     };
     load().catch(() => {
@@ -1076,14 +1191,34 @@ export default function Home() {
     };
   }, []);
 
-  /* ── filter ── */
   useEffect(() => {
-    const base =
-      activeCat === null
-        ? allItems
-        : allItems.filter((i) => i.category === activeCat);
-    setItems([...base].sort((a, b) => a.order - b.order));
-  }, [activeCat, allItems]);
+    if (!categories.length) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+
+        if (visible.length) {
+          const id = Number(visible[0].target.id.replace("category-", ""));
+          setActiveCat(id || (categories[0]?.id ?? null));
+        }
+      },
+      {
+        rootMargin: "-120px 0px -60% 0px",
+        threshold: [0.25, 0.5, 0.75],
+      },
+    );
+
+    const elements = categories
+      .map((cat) => document.getElementById(`category-${cat.id}`))
+      .filter(Boolean);
+
+    elements.forEach((el) => observer.observe(el!));
+
+    return () => observer.disconnect();
+  }, [categories]);
 
   /* ── cart helpers ── */
   const cartCount = Array.from(cart.values()).reduce((s, c) => s + c.qty, 0);
@@ -1137,9 +1272,6 @@ export default function Home() {
   );
 
   /* ── computed ── */
-  const activeCatData = categories.find((c) => c.id === activeCat);
-  const activeCatAllGone =
-    activeCat !== null && activeCatData?.available_count === 0;
   const isLoading = dataState === "loading";
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "صبح بخیر" : hour < 17 ? "ظهر بخیر" : "عصر بخیر";
@@ -1154,6 +1286,7 @@ export default function Home() {
 
         @keyframes didFadeIn   { from{opacity:0} to{opacity:1} }
         @keyframes didFadeUp   { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes didFadeDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
         @keyframes didScaleIn  { from{opacity:0;transform:scale(0.93)} to{opacity:1;transform:scale(1)} }
         @keyframes didSheetIn  { from{transform:translateY(100%)} to{transform:translateY(0)} }
         @keyframes didDrawerIn { from{transform:translateX(100%)} to{transform:translateX(0)} }
@@ -1271,11 +1404,8 @@ export default function Home() {
                   letterSpacing: -0.3,
                 }}
               >
-                خانه‌ی دیدار
+                 کافه رستوران دیدار
               </h1>
-              <p style={{ color: `${B.sand}99`, fontSize: 12, marginTop: 3 }}>
-                منوی نوشیدنی و دسر
-              </p>
             </div>
 
             {/* Cart button */}
@@ -1320,376 +1450,353 @@ export default function Home() {
 
         {/* ═══ DATA BADGE ═══
           <DataBadge state={dataState} /> */}
-        {/* ═══ CATEGORIES ═══ */}
-        <div style={{ padding: "18px 0 0" }}>
-          <h2
-            style={{
-              fontSize: 16,
-              fontWeight: 700,
-              color: B.ink,
-              margin: "0 0 10px 16px",
-              direction: "rtl",
-              textAlign: "right",
-              animation: "didFadeUp 0.45s 0.12s ease both",
-              opacity: 0,
-              animationFillMode: "both",
-            }}
-          >
-            دسته‌بندی‌ها
-          </h2>
 
+        {/* ═══ CATEGORY BUTTONS ═══ */}
+        <div
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 40,
+            background: B.sand,
+            borderBottom: `2px solid ${B.sandDark}55`,
+            padding: "10px 0",
+            paddingTop: 12,
+          }}
+        >
           <div
+            className="hide-scrollbar"
             style={{
               display: "flex",
               gap: 8,
               overflowX: "auto",
-              padding: "2px 16px 4px",
+              padding: "0 16px",
               flexDirection: "row-reverse",
+              whiteSpace: "nowrap",
             }}
           >
             {isLoading ? (
-              Array.from({ length: 5 }).map((_, i) => <SkeletonCat key={i} />)
+              Array.from({ length: 4 }).map((_, i) => <SkeletonCat key={i} />)
             ) : (
-              <>
-                {/* All */}
-                <button
-                  onClick={() => setActiveCat(null)}
-                  style={{
-                    padding: "8px 18px",
-                    borderRadius: 999,
-                    border: "none",
-                    whiteSpace: "nowrap",
-                    background: activeCat === null ? B.green : B.cream,
-                    color: activeCat === null ? B.cream : B.inkMid,
-                    fontWeight: activeCat === null ? 700 : 400,
-                    fontSize: 13,
-                    cursor: "pointer",
-                    boxShadow:
-                      activeCat === null
-                        ? `0 4px 12px ${B.green}44`
-                        : `0 1px 4px ${B.ink}11`,
-                    transition: "all 0.22s ease",
-                    animation: "didScaleIn 0.35s 0.18s ease both",
-                    opacity: 0,
-                    animationFillMode: "both",
-                  }}
-                >
-                  همه ({allItems.length})
-                </button>
+              categories.map((cat) => {
+                const hasAvailable = allItems
+                  .filter((i) => i.category === cat.id)
+                  .some((i) => i.is_available);
+                const isActive = activeCat === cat.id;
 
-                {categories.map((cat, i) => {
-                  const isActive = activeCat === cat.id;
-                  const gone = cat.available_count === 0;
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => setActiveCat(cat.id)}
-                      style={{
-                        padding: "8px 14px",
-                        borderRadius: 999,
-                        border: "none",
-                        whiteSpace: "nowrap",
-                        background: isActive
-                          ? gone
-                            ? "#7f1d1d"
-                            : B.green
-                          : gone
-                            ? "#f5dada"
-                            : B.cream,
-                        color: isActive ? B.cream : gone ? B.red : B.inkMid,
-                        fontWeight: isActive ? 700 : 400,
-                        fontSize: 13,
-                        cursor: "pointer",
-                        boxShadow: isActive
-                          ? `0 4px 12px ${B.green}44`
-                          : `0 1px 4px ${B.ink}11`,
-                        transition: "all 0.22s ease",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 5,
-                        direction: "rtl",
-                        animation: `didScaleIn 0.35s ${0.07 * i + 0.22}s ease both`,
-                        opacity: 0,
-                        animationFillMode: "both",
-                        position: "relative",
-                      }}
-                    >
-                      {gone && (
-                        <span
-                          style={{
-                            position: "absolute",
-                            top: -3,
-                            right: -3,
-                            width: 8,
-                            height: 8,
-                            borderRadius: "50%",
-                            background: B.red,
-                            border: `2px solid ${B.sand}`,
-                          }}
-                        />
-                      )}
-                      <span>{CAT_EMOJI[cat.id] ?? "🍽"}</span>
-                      <span>{cat.name}</span>
-                      <span
-                        style={{
-                          background: isActive
-                            ? "rgba(237,232,223,0.2)"
-                            : `${B.ink}0f`,
-                          borderRadius: 8,
-                          padding: "1px 6px",
-                          fontSize: 10,
-                          color: gone && !isActive ? B.red : "inherit",
-                        }}
-                      >
-                        {cat.available_count}/{cat.item_count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </>
+                return (
+                  <Button
+                    key={cat.id}
+                    variant={isActive ? "secondary" : "tertiary"}
+                    onPress={() => {
+                      const el = document.getElementById(`category-${cat.id}`);
+                      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      setActiveCat(cat.id);
+                    }}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: 999,
+                      border: "none",
+                      whiteSpace: "nowrap",
+                      background: isActive
+                        ? B.green
+                        : hasAvailable
+                          ? B.cream
+                          : "#f5dada",
+                      color: isActive ? B.cream : hasAvailable ? B.inkMid : B.red,
+                      fontWeight: 600,
+                      fontSize: 13,
+                      cursor: "pointer",
+                      boxShadow: `0 1px 4px ${B.ink}11`,
+                      transition: "all 0.2s ease",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                      direction: "rtl",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <span>{CAT_EMOJI[cat.id] ?? "🍽"}</span>
+                    <span>{cat.name}</span>
+                  </Button>
+                );
+              })
             )}
           </div>
         </div>
 
-        {/* ═══ CATEGORY UNAVAILABLE BANNER ═══ */}
-        {!isLoading && activeCatAllGone && activeCatData && (
-          <div style={{ padding: "12px 16px 0" }}>
-            <CatUnavailBanner name={activeCatData.name} />
-          </div>
-        )}
+        {/* ═══ ITEMS BY CATEGORY ═══ */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+          {isLoading ? (
+            <div style={{ padding: "6px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
+              {Array.from({ length: 7 }).map((_, i) => <SkeletonCard key={i} />)}
+            </div>
+          ) : (
+            categories.map((category, catIdx) => {
+              const catItems = allItems.filter((i) => i.category === category.id && i.order);
+              if (catItems.length === 0) return null;
 
-        {/* ═══ ITEMS COUNT ═══ */}
-        {!isLoading && !activeCatAllGone && (
-          <p
-            style={{
-              fontSize: 12,
-              color: B.inkLight,
-              padding: "10px 18px 2px",
-              direction: "rtl",
-              textAlign: "right",
-              animation: "didFadeIn 0.4s ease both",
-            }}
-          >
-            {items.filter((i) => i.is_available).length} موجود از {items.length}{" "}
-            مورد
-          </p>
-        )}
+              const hasAvailable = catItems.some((i) => i.is_available);
 
-        {/* ═══ MENU ITEMS ═══ */}
-        <div
-          className="items-grid"
-          style={{
-            padding: "6px 16px 0",
-            display: "flex",
-            flexDirection: "column",
-            gap: 10,
-          }}
-        >
-          {isLoading
-            ? Array.from({ length: 7 }).map((_, i) => <SkeletonCard key={i} />)
-            : items.map((item, i) => {
-                const inCart = cart.get(item.id);
-                const unavail = !item.is_available;
-
-                return (
+              return (
+                <Card
+                  key={category.id}
+                  id={`category-${category.id}`}
+                  render={({ children, ...props }) => (
+                    <section {...props}>{children}</section>
+                  )}
+                  style={{ display: "flex", flexDirection: "column" }}
+                >
+                  {/* ── Category Header ── */}
                   <div
-                    key={item.id}
-                    onClick={() => setSelectedItem(item)}
                     style={{
-                      background: unavail ? `${B.sandLight}77` : B.cream,
-                      borderRadius: 18,
-                      padding: "14px 16px",
+                      position: "sticky",
+                      top: 60,
+                      background: `url('/Asset 14@9x.png') center/cover, ${B.sand}`,
+                      backgroundBlendMode: "overlay",
+                      zIndex: 30,
+                      paddingTop: 12,
+                      paddingBottom: 8,
+                      paddingLeft: 16,
+                      paddingRight: 16,
+                      borderBottom: `2px solid ${B.sandDark}55`,
+                      borderTop: `1px solid ${B.sandDark}33`,
                       display: "flex",
-                      gap: 12,
                       alignItems: "center",
-                      boxShadow: unavail ? "none" : `0 2px 10px ${B.ink}0d`,
-                      border: inCart
-                        ? `1.5px solid ${B.greenLight}`
-                        : unavail
-                          ? `1px dashed ${B.sandDark}`
-                          : `1px solid ${B.sandDark}44`,
-                      animation: `didFadeUp 0.38s ${Math.min(i * 0.04, 0.32)}s ease both`,
-                      opacity: 0,
-                      animationFillMode: "both",
-                      cursor: "pointer",
-                      transition: "transform 0.14s, box-shadow 0.2s",
-                      position: "relative",
-                      overflow: "hidden",
-                      filter: unavail ? "saturate(0.25) opacity(0.7)" : "none",
-                    }}
-                    onTouchStart={(e) => {
-                      if (!unavail)
-                        e.currentTarget.style.transform = "scale(0.975)";
-                    }}
-                    onTouchEnd={(e) =>
-                      (e.currentTarget.style.transform = "scale(1)")
-                    }
-                    onMouseEnter={(e) => {
-                      if (!unavail)
-                        e.currentTarget.style.boxShadow = `0 6px 20px ${B.ink}1a`;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.boxShadow = unavail
-                        ? "none"
-                        : `0 2px 10px ${B.ink}0d`;
+                      gap: 10,
+                      animation: "didFadeDown 0.3s ease both",
                     }}
                   >
-                    {/* qty badge */}
-                    {inCart && !unavail && (
-                      <div
+                    <span style={{ fontSize: 24 }}>
+                      {CAT_EMOJI[category.id] ?? "🍽"}
+                    </span>
+                    <div style={{ flex: 1, direction: "rtl" }}>
+                      <h3 style={{ fontSize: 16, fontWeight: 700, color: B.ink, margin: 0 }}>
+                        {category.name}
+                      </h3>
+                      <p
                         style={{
-                          position: "absolute",
-                          top: 8,
-                          left: 8,
-                          background: B.green,
-                          borderRadius: 7,
-                          padding: "2px 7px",
-                          fontSize: 10,
-                          color: B.cream,
-                          fontWeight: 700,
-                          zIndex: 2,
+                          fontSize: 11,
+                          color: B.inkLight,
+                          margin: "2px 0 0",
                         }}
                       >
-                        ×{inCart.qty}
+                        {catItems.filter((i) => i.is_available).length} موجود از {catItems.length} مورد
+                      </p>
+                    </div>
+                    {!hasAvailable && (
+                      <div
+                        style={{
+                          background: "#f5dada",
+                          color: B.red,
+                          borderRadius: 8,
+                          padding: "4px 10px",
+                          fontSize: 10,
+                          fontWeight: 600,
+                        }}
+                      >
+                        ناموجود
                       </div>
                     )}
-                    {/* unavailable tag */}
-                    {unavail && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: 9,
-                          left: 0,
-                          right: 0,
-                          display: "flex",
-                          justifyContent: "center",
-                          zIndex: 4,
-                        }}
-                      >
-                        <span
+                  </div>
+
+                  {/* ── Category Items ── */}
+                  <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+                    {catItems.map((item, i) => {
+                      const inCart = cart.get(item.id);
+                      const unavail = !item.is_available;
+
+                      return (
+                        <motion.div
+                          key={item.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: Math.min(i * 0.05, 0.2) }}
+                          onClick={() => setSelectedItem(item)}
                           style={{
-                            background: B.red,
-                            color: "white",
-                            fontSize: 9,
-                            fontWeight: 700,
-                            padding: "2px 10px",
-                            borderRadius: 5,
-                            direction: "rtl",
-                            opacity: 0.85,
+                            background: unavail
+                              ? `${B.sandLight}77`
+                              : `url('/Asset 6@9x.png') right/cover, ${B.cream}`,
+                            backgroundBlendMode: unavail ? "normal" : "overlay",
+                            borderRadius: 18,
+                            padding: "14px 16px",
+                            display: "flex",
+                            gap: 12,
+                            alignItems: "center",
+                            boxShadow: unavail ? "none" : `0 2px 10px ${B.ink}0d`,
+                            border: inCart
+                              ? `1.5px solid ${B.greenLight}`
+                              : unavail
+                                ? `1px dashed ${B.sandDark}`
+                                : `1px solid ${B.sandDark}44`,
+                            cursor: "pointer",
+                            position: "relative",
+                            overflow: "hidden",
+                            filter: unavail ? "saturate(0.25) opacity(0.7)" : "none",
                           }}
                         >
-                          ناموجود
-                        </span>
-                      </div>
-                    )}
+                          {/* qty badge */}
+                          {inCart && !unavail && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: 8,
+                                left: 8,
+                                background: B.green,
+                                borderRadius: 7,
+                                padding: "2px 7px",
+                                fontSize: 10,
+                                color: B.cream,
+                                fontWeight: 700,
+                                zIndex: 2,
+                              }}
+                            >
+                              ×{inCart.qty}
+                            </div>
+                          )}
+                          {/* unavailable tag */}
+                          {unavail && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: 9,
+                                left: 0,
+                                right: 0,
+                                display: "flex",
+                                justifyContent: "center",
+                                zIndex: 4,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  background: B.red,
+                                  color: "white",
+                                  fontSize: 9,
+                                  fontWeight: 700,
+                                  padding: "2px 10px",
+                                  borderRadius: 5,
+                                  direction: "rtl",
+                                  opacity: 0.85,
+                                }}
+                              >
+                                ناموجود
+                              </span>
+                            </div>
+                          )}
 
-                    <ItemImage
-                      item={item}
-                      size={64}
-                      radius={14}
-                      grayscale={unavail}
-                    />
+                          <ItemImage
+                            item={item}
+                            size={64}
+                            radius={14}
+                            grayscale={unavail}
+                          />
 
-                    <div
-                      style={{
-                        flex: 1,
-                        minWidth: 0,
-                        direction: "rtl",
-                        textAlign: "right",
-                      }}
-                    >
-                      <p
-                        style={{
-                          fontWeight: 600,
-                          fontSize: 14,
-                          lineHeight: 1.3,
-                          color: unavail ? B.inkLight : B.ink,
-                          textDecoration: unavail ? "line-through" : "none",
-                        }}
-                      >
-                        {item.name}
-                      </p>
-                      <p
-                        style={{
-                          color: unavail ? `${B.inkLight}99` : B.inkMid,
-                          fontSize: 11,
-                          marginTop: 3,
-                          lineHeight: 1.55,
-                          overflow: "hidden",
-                          display: "-webkit-box",
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: "vertical",
-                        }}
-                      >
-                        {item.description}
-                      </p>
-                      <p
-                        style={{
-                          color: unavail ? B.sandDark : B.inkLight,
-                          fontSize: 10,
-                          marginTop: 4,
-                        }}
-                      >
-                        {CAT_EMOJI[item.category] ?? ""} {item.category_name}
-                      </p>
-                    </div>
+                          <div
+                            style={{
+                              flex: 1,
+                              minWidth: 0,
+                              direction: "rtl",
+                              textAlign: "right",
+                            }}
+                          >
+                            <p
+                              style={{
+                                fontWeight: 600,
+                                fontSize: 14,
+                                lineHeight: 1.3,
+                                color: unavail ? B.inkLight : B.ink,
+                                textDecoration: unavail ? "line-through" : "none",
+                              }}
+                            >
+                              {item.name}
+                            </p>
+                            <p
+                              style={{
+                                color: unavail ? `${B.inkLight}99` : B.inkMid,
+                                fontSize: 11,
+                                marginTop: 3,
+                                lineHeight: 1.55,
+                                overflow: "hidden",
+                                display: "-webkit-box",
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: "vertical",
+                              }}
+                            >
+                              {item.description}
+                            </p>
+                          </div>
 
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "flex-end",
-                        gap: 8,
-                        flexShrink: 0,
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          whiteSpace: "nowrap",
-                          color: unavail ? B.inkLight : B.green,
-                        }}
-                      >
-                        {item.formatted_price}
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!unavail) addToCart(item);
-                        }}
-                        disabled={unavail}
-                        title={
-                          unavail ? "این آیتم موجود نیست" : "افزودن به سبد"
-                        }
-                        style={{
-                          width: 34,
-                          height: 34,
-                          borderRadius: 10,
-                          border: "none",
-                          background: unavail
-                            ? B.sandDark
-                            : inCart
-                              ? B.greenLight
-                              : B.green,
-                          color: unavail ? B.inkLight : B.cream,
-                          fontSize: unavail ? 13 : 19,
-                          cursor: unavail ? "not-allowed" : "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          boxShadow: unavail
-                            ? "none"
-                            : `0 3px 8px ${B.green}44`,
-                          transition: "all 0.2s ease",
-                        }}
-                      >
-                        {unavail ? "✕" : inCart ? "✓" : "+"}
-                      </button>
-                    </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "flex-end",
+                              gap: 8,
+                              flexShrink: 0,
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 700,
+                                whiteSpace: "nowrap",
+                                color: unavail ? B.inkLight : B.green,
+                              }}
+                            >
+                              {item.formatted_price}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!unavail) addToCart(item);
+                              }}
+                              disabled={unavail}
+                              title={
+                                unavail ? "این آیتم موجود نیست" : "افزودن به سبد"
+                              }
+                              style={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: 10,
+                                border: "none",
+                                background: unavail
+                                  ? B.sandDark
+                                  : inCart
+                                    ? B.greenLight
+                                    : B.green,
+                                color: unavail ? B.inkLight : B.cream,
+                                fontSize: unavail ? 13 : 19,
+                                cursor: unavail ? "not-allowed" : "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                boxShadow: unavail
+                                  ? "none"
+                                  : `0 3px 8px ${B.green}44`,
+                                transition: "transform 0.18s ease, background 0.18s ease",
+                              }}
+                            >
+                              {unavail ? "✕" : inCart ? "✓" : "+"}
+                            </button>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+
+                  {/* ── Category Separator ── */}
+                  {catIdx < categories.length - 1 && (
+                    <div
+                      style={{
+                        height: 1,
+                        background: `linear-gradient(90deg, ${B.sandDark}00, ${B.sandDark}55, ${B.sandDark}00)`,
+                        margin: "8px 0",
+                      }}
+                    />
+                  )}
+                </Card>
+              );
+            })
+          )}
         </div>
 
         {/* ═══ STICKY CART BAR ═══ */}
@@ -1758,6 +1865,8 @@ export default function Home() {
               addToCart(item);
             }}
             cartQty={cart.get(selectedItem.id)?.qty ?? 0}
+            allItems={allItems}
+            onSelectItem={setSelectedItem}
           />
         )}
         {cartOpen && (
