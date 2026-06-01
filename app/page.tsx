@@ -1163,6 +1163,39 @@ export default function Home() {
   const [cart, setCart] = useState<Map<number, CartItem>>(new Map());
   const bumpRef = useRef<HTMLSpanElement>(null);
 
+  /* ── load cart from localStorage ── */
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("didarcafe_cart");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const cartMap = new Map(
+          parsed.map((item: any) => [
+            item.id,
+            { item: item.item, qty: item.qty },
+          ])
+        );
+        setCart(cartMap);
+      }
+    } catch (err) {
+      console.warn("Failed to load cart from localStorage:", err);
+    }
+  }, []);
+
+  /* ── save cart to localStorage ── */
+  useEffect(() => {
+    try {
+      const cartArray = Array.from(cart.values()).map((c) => ({
+        id: c.item.id,
+        item: c.item,
+        qty: c.qty,
+      }));
+      localStorage.setItem("didarcafe_cart", JSON.stringify(cartArray));
+    } catch (err) {
+      console.warn("Failed to save cart to localStorage:", err);
+    }
+  }, [cart]);
+
   /* ── load ── */
   useEffect(() => {
     let alive = true;
@@ -1544,6 +1577,7 @@ export default function Home() {
                   render={({ children, ...props }) => (
                     <section {...props}>{children}</section>
                   )}
+                  className="bg-white/20 mt-10"
                   style={{ display: "flex", flexDirection: "column" }}
                 >
                   {/* ── Category Header ── */}
@@ -1565,6 +1599,7 @@ export default function Home() {
                       gap: 10,
                       animation: "didFadeDown 0.3s ease both",
                     }}
+                    className="rounded-2xl"
                   >
                     <span style={{ fontSize: 24 }}>
                       {CAT_EMOJI[category.id] ?? "🍽"}
