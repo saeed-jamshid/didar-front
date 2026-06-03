@@ -1200,6 +1200,9 @@ function CartPanel({
 export default function Home() {
   const isMobile = useIsMobile();
 
+  const [headerImageIndex] = useState(() => Math.floor(Math.random() * 4));
+  const headerImage = `/img/${headerImageIndex}.JPG`;
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [allItems, setAllItems] = useState<MenuItem[]>([]);
   const [dataState, setDataState] = useState<DataState>("loading");
@@ -1433,13 +1436,14 @@ export default function Home() {
           }}
         >
           <Image
-      src="/img/0.JPG"
-      fill
-      sizes="70vw"
-      objectFit="cover"
-      alt="Picture of the author"
-      className=" rounded-b-3xl lg:rounded-3xl absolute w-full"
-    />
+            src={headerImage}
+            fill
+            sizes="70vw"
+            objectFit="cover"
+            priority
+            alt="Header background"
+            className="rounded-b-3xl lg:rounded-3xl absolute w-full"
+          />
      <Image
       src="/img/logo-text.png"
       width={200}
