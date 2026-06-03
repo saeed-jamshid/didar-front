@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import type { PanInfo } from "framer-motion";
 import { Button, Card } from "@heroui/react";
 import {
   fetchCategories,
@@ -17,22 +19,22 @@ interface CartItem {
   item: MenuItem;
   qty: number;
 }
-type DataState = "loading" | "live" | "mock" | "error";
+type DataState = "loading" | "live" | "error";
 
 /* ════════════════════════════════════════════════
    BRAND TOKENS  (خانه‌ی دیدار)
    ════════════════════════════════════════════════ */
 const B = {
-  sand: "#cfc5b4", // main bg
+  sand: "#cfc5b4",
   sandLight: "#ddd5c6",
   sandDark: "#b8ae9e",
-  cream: "#ede8df", // card bg
+  cream: "#ede8df",
   creamDark: "#e0d9ce",
-  green: "#1a4731", // primary dark green
+  green: "#1a4731",
   greenMid: "#2d6a4f",
   greenLight: "#52b788",
   greenPale: "#d4e9dc",
-  ink: "#1c1c1a", // text
+  ink: "#1c1c1a",
   inkMid: "#4a4840",
   inkLight: "#8a8680",
   red: "#a33030",
@@ -48,20 +50,23 @@ const CAT_EMOJI: Record<number, string> = {
   3: "🍵",
   4: "🍰",
 };
+function formatPrice(raw: number): string {
+  return (raw * 1000).toLocaleString("fa-IR") + " تومان";
+}
 
 function useIsMobile() {
-  const [mobile, setMobile] = useState(true);
+  const [mobile, setMobile] = useState<boolean | undefined>(undefined);
   useEffect(() => {
     const check = () => setMobile(window.innerWidth < 768);
     check();
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
-  return mobile;
+  return mobile ?? false;
 }
 
 /* ════════════════════════════════════════════════
-   ITEM IMAGE
+   ITEM IMAGE  — blur-up with Next.js <Image>
    ════════════════════════════════════════════════ */
 function ItemImage({
   item,
@@ -74,8 +79,10 @@ function ItemImage({
   radius?: number;
   grayscale?: boolean;
 }) {
+  const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState(false);
-  const show = item.has_image && item.image_url && !err;
+  const showReal = item.has_image && item.image_url && !err;
+
   return (
     <div
       style={{
@@ -83,28 +90,59 @@ function ItemImage({
         height: size,
         borderRadius: radius,
         flexShrink: 0,
-        background: `linear-gradient(145deg, ${B.greenPale}, ${B.cream})`,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
         overflow: "hidden",
+        position: "relative",
+        background: item.blur_data_url
+          ? `url(${item.blur_data_url}) center/cover`
+          : `linear-gradient(145deg, ${B.greenPale}, ${B.cream})`,
         filter: grayscale ? "grayscale(1) opacity(0.5)" : "none",
         transition: "filter 0.3s",
-        border: `1px solid ${B.sandDark}44`,
       }}
     >
-      {show ? (
-        <img
+      {/* blur overlay — fades out when real image loads */}
+      {showReal && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 2,
+            backdropFilter: loaded ? "none" : "blur(12px)",
+            opacity: loaded ? 0 : 1,
+            transition: "opacity 0.45s ease",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+
+      {showReal ? (
+        <Image
           src={item.image_url!}
           alt={item.name}
+          fill
+          sizes={`${size}px`}
+          style={{
+            objectFit: "cover",
+            opacity: loaded ? 1 : 0,
+            transition: "opacity 0.45s ease",
+          }}
+          placeholder={item.blur_data_url ? "blur" : "empty"}
+          blurDataURL={item.blur_data_url}
+          onLoad={() => setLoaded(true)}
           onError={() => setErr(true)}
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
         />
       ) : (
         <img
           src="/default-item.svg"
           alt={item.name}
-          style={{ width: "68%", height: "68%", objectFit: "contain" }}
+          style={{
+            width: "68%",
+            height: "68%",
+            objectFit: "contain",
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%,-50%)",
+          }}
         />
       )}
     </div>
@@ -173,16 +211,10 @@ function SkeletonCat() {
    ════════════════════════════════════════════════ */
 function DataBadge({ state }: { state: DataState }) {
   if (state === "loading") return null;
-  const cfg = {
-    live: {
-      bg: "#d4e9dc",
-      color: B.green,
-      dot: "#1a7a47",
-      text: "اتصال به سرور",
-    },
-    mock: { bg: "#f5ead8", color: B.amber, dot: "#c27c2c", text: "داده نمونه" },
-    error: { bg: "#f5dada", color: B.red, dot: B.red, text: "خطا در اتصال" },
-  }[state];
+  const cfg =
+    state === "live"
+      ? { bg: "#d4e9dc", color: B.green, dot: "#1a7a47", text: "اتصال به سرور" }
+      : { bg: "#f5dada", color: B.red, dot: B.red, text: "خطا در اتصال" };
   return (
     <div
       style={{
@@ -321,23 +353,27 @@ function ItemModal({
   onSelectItem: (item: MenuItem) => void;
 }) {
   const [added, setAdded] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
   const [imgErr, setImgErr] = useState(false);
   const [direction, setDirection] = useState<"next" | "prev">("next");
-  
+
   useEffect(() => {
     setAdded(false);
     setImgErr(false);
+    setImgLoaded(false);
   }, [item?.id]);
   if (!item) return null;
 
   const unavail = !item.is_available;
+  const outOfHours = item.is_available && !item.is_time_available;
+
   const showReal = item.has_image && item.image_url && !imgErr;
 
-  /* ── Find next and prev items in same category ── */
   const sameCategory = allItems.filter((i) => i.category === item.category);
   const currentIdx = sameCategory.findIndex((i) => i.id === item.id);
   const prevItem = currentIdx > 0 ? sameCategory[currentIdx - 1] : null;
-  const nextItem = currentIdx < sameCategory.length - 1 ? sameCategory[currentIdx + 1] : null;
+  const nextItem =
+    currentIdx < sameCategory.length - 1 ? sameCategory[currentIdx + 1] : null;
 
   const handleNavigate = (newItem: MenuItem | null) => {
     if (!newItem) return;
@@ -352,8 +388,7 @@ function ItemModal({
     setTimeout(() => setAdded(false), 900);
   };
 
-  /* ── Swipe handlers ── */
-  const handleDragEnd = (event: any, info: any) => {
+  const handleDragEnd = (_: unknown, info: PanInfo) => {
     const swipeThreshold = 50;
     if (info.offset.x > swipeThreshold && prevItem) {
       handleNavigate(prevItem);
@@ -362,7 +397,6 @@ function ItemModal({
     }
   };
 
-  /* ── shared inner content ── */
   const inner = (
     <motion.div
       key={item.id}
@@ -378,7 +412,6 @@ function ItemModal({
         display: "flex",
         flexDirection: "column",
         background: B.cream,
-        /* arch top on desktop */
         borderRadius: isMobile ? "26px 26px 0 0" : "120px 120px 24px 24px",
         overflow: "hidden",
         maxWidth: isMobile ? undefined : 480,
@@ -388,24 +421,51 @@ function ItemModal({
         cursor: "grab",
       }}
     >
-      {/* Image zone — arched on desktop */}
+      {/* Image zone */}
       <div
         style={{
           position: "relative",
           height: isMobile ? 190 : 260,
           flexShrink: 0,
-          background: `linear-gradient(160deg, ${B.greenPale}, ${B.sandLight})`,
+          background: item.blur_data_url
+            ? `url(${item.blur_data_url}) center/cover`
+            : `linear-gradient(160deg, ${B.greenPale}, ${B.sandLight})`,
           overflow: "hidden",
           filter: unavail ? "grayscale(0.7) brightness(0.82)" : "none",
           transition: "filter 0.3s",
         }}
       >
+        {/* blur overlay for modal hero */}
+        {showReal && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 2,
+              backdropFilter: imgLoaded ? "none" : "blur(16px)",
+              opacity: imgLoaded ? 0 : 1,
+              transition: "opacity 0.5s ease",
+              pointerEvents: "none",
+            }}
+          />
+        )}
+
         {showReal ? (
-          <img
+          <Image
             src={item.image_url!}
             alt={item.name}
+            fill
+            sizes="(max-width: 768px) 100vw, 480px"
+            style={{
+              objectFit: "cover",
+              opacity: imgLoaded ? 1 : 0,
+              transition: "opacity 0.5s ease",
+            }}
+            placeholder={item.blur_data_url ? "blur" : "empty"}
+            blurDataURL={item.blur_data_url}
+            onLoad={() => setImgLoaded(true)}
             onError={() => setImgErr(true)}
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            priority
           />
         ) : (
           <img
@@ -500,6 +560,7 @@ function ItemModal({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              zIndex: 10,
             }}
           >
             ✕
@@ -519,9 +580,10 @@ function ItemModal({
             fontSize: 11,
             fontWeight: 600,
             direction: "rtl",
+            zIndex: 10,
           }}
         >
-          {CAT_EMOJI[item.category] ?? "🍽"} {item.category_name}
+          {item.category_name}
         </div>
 
         {/* Item counter */}
@@ -537,6 +599,7 @@ function ItemModal({
             padding: "4px 12px",
             fontSize: 11,
             fontWeight: 600,
+            zIndex: 10,
           }}
         >
           {currentIdx + 1} / {sameCategory.length}
@@ -552,6 +615,7 @@ function ItemModal({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              zIndex: 10,
             }}
           >
             <div
@@ -601,7 +665,6 @@ function ItemModal({
           direction: "rtl",
         }}
       >
-        {/* name + price row */}
         <div
           style={{
             display: "flex",
@@ -631,11 +694,10 @@ function ItemModal({
               paddingTop: 4,
             }}
           >
-            {item.formatted_price}
+            {formatPrice(item.price)}
           </span>
         </div>
 
-        {/* description */}
         <p
           style={{
             color: unavail ? B.inkLight : B.inkMid,
@@ -648,13 +710,17 @@ function ItemModal({
           {item.description}
         </p>
 
-        {/* status pills */}
         <div
           style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}
         >
           <span
             style={{
-              background: unavail ? "#f5dada" : B.greenPale,
+              background: unavail
+                ? `#f5dada88`
+                : outOfHours
+                  ? `#f5ead888`
+                  : `url('/Asset 6@9x.png') right/cover, ${B.cream}`,
+              backgroundBlendMode: unavail || outOfHours ? "normal" : "overlay",
               borderRadius: 10,
               padding: "4px 13px",
               fontSize: 12,
@@ -680,7 +746,6 @@ function ItemModal({
           )}
         </div>
 
-        {/* unavailable notice */}
         {unavail && (
           <div
             style={{
@@ -700,7 +765,6 @@ function ItemModal({
           </div>
         )}
 
-        {/* add button */}
         <button
           disabled={unavail}
           onClick={handleAdd}
@@ -731,7 +795,6 @@ function ItemModal({
     </motion.div>
   );
 
-  /* ── mobile: bottom sheet ── */
   if (isMobile)
     return (
       <>
@@ -756,14 +819,11 @@ function ItemModal({
             zIndex: 301,
           }}
         >
-          <AnimatePresence mode="wait">
-            {inner}
-          </AnimatePresence>
+          <AnimatePresence mode="wait">{inner}</AnimatePresence>
         </div>
       </>
     );
 
-  /* ── desktop: centered modal ── */
   return (
     <>
       <div
@@ -781,9 +841,7 @@ function ItemModal({
         }}
       >
         <div onClick={(e) => e.stopPropagation()}>
-          <AnimatePresence mode="wait">
-            {inner}
-          </AnimatePresence>
+          <AnimatePresence mode="wait">{inner}</AnimatePresence>
         </div>
       </div>
     </>
@@ -826,7 +884,6 @@ function CartPanel({
         paddingBottom: isMobile ? "env(safe-area-inset-bottom,20px)" : 0,
       }}
     >
-      {/* handle */}
       {isMobile && (
         <div
           style={{
@@ -847,7 +904,6 @@ function CartPanel({
         </div>
       )}
 
-      {/* header */}
       <div
         style={{
           display: "flex",
@@ -889,7 +945,6 @@ function CartPanel({
         </button>
       </div>
 
-      {/* items */}
       <div
         style={{
           overflowY: "auto",
@@ -955,7 +1010,7 @@ function CartPanel({
                     marginTop: 2,
                   }}
                 >
-                  {(item.price * qty).toLocaleString("fa-IR")} تومان
+                  {formatPrice(item.price * qty).toLocaleString("fa-IR")} تومان
                 </p>
               </div>
               <div
@@ -1050,7 +1105,6 @@ function CartPanel({
         )}
       </div>
 
-      {/* footer */}
       {cartItems.length > 0 && (
         <div
           style={{
@@ -1083,7 +1137,6 @@ function CartPanel({
     </div>
   );
 
-  /* mobile: bottom sheet */
   if (isMobile)
     return (
       <>
@@ -1113,7 +1166,6 @@ function CartPanel({
       </>
     );
 
-  /* desktop: right side drawer */
   return (
     <>
       <div
@@ -1148,20 +1200,20 @@ function CartPanel({
 export default function Home() {
   const isMobile = useIsMobile();
 
-  /* data */
   const [categories, setCategories] = useState<Category[]>([]);
   const [allItems, setAllItems] = useState<MenuItem[]>([]);
   const [dataState, setDataState] = useState<DataState>("loading");
 
-  /* ui */
   const [activeCat, setActiveCat] = useState<number | null>(null);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  /* cart */
   const [cart, setCart] = useState<Map<number, CartItem>>(new Map());
   const bumpRef = useRef<HTMLSpanElement>(null);
+
+  const isScrollingRef = useRef(false);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* ── load cart from localStorage ── */
   useEffect(() => {
@@ -1173,7 +1225,7 @@ export default function Home() {
           parsed.map((item: any) => [
             item.id,
             { item: item.item, qty: item.qty },
-          ])
+          ]),
         );
         setCart(cartMap);
       }
@@ -1196,7 +1248,7 @@ export default function Home() {
     }
   }, [cart]);
 
-  /* ── load ── */
+  /* ── load data — caching enabled via next: { revalidate } in lib/api.ts ── */
   useEffect(() => {
     let alive = true;
     const load = async () => {
@@ -1204,17 +1256,23 @@ export default function Home() {
       let live = false;
       try {
         const url = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
-        const r = await fetch(`${url}/api/categories/`, { cache: "no-store" });
+        // revalidate: 60 — Next.js caches this fetch for 60 seconds
+        const r = await fetch(`${url}/api/categories/`, {
+          next: { revalidate: 60 },
+        });
         live = r.ok;
       } catch {
         /* offline */
       }
       const [cats, its] = await Promise.all([fetchCategories(), fetchItems()]);
       if (!alive) return;
-      setCategories([...cats].sort((a, b) => a.order - b.order));
+      const sortedCats = [...cats].sort((a, b) => a.order - b.order);
+      setCategories(sortedCats);
       const sorted = [...its].sort((a, b) => a.order - b.order);
       setAllItems(sorted);
-      setDataState(live ? "live" : "mock");
+      // Ensure an initial active category is selected when data loads
+      setActiveCat((prev) => prev ?? (sortedCats[0]?.id ?? null));
+      setDataState(live ? "live" : "error");
     };
     load().catch(() => {
       if (alive) setDataState("error");
@@ -1229,6 +1287,8 @@ export default function Home() {
 
     const observer = new IntersectionObserver(
       (entries) => {
+        if (isScrollingRef.current) return; // ← ignore while programmatic scroll runs
+
         const visible = entries
           .filter((entry) => entry.isIntersecting)
           .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
@@ -1236,11 +1296,14 @@ export default function Home() {
         if (visible.length) {
           const id = Number(visible[0].target.id.replace("category-", ""));
           setActiveCat(id || (categories[0]?.id ?? null));
+          // Auto-scroll the active category to center when detected during manual scroll
+          visible[0].target.scrollIntoView({ behavior: "smooth", block: "center" });
         }
       },
       {
         rootMargin: "-120px 0px -60% 0px",
-        threshold: [0.25, 0.5, 0.75],
+        // include 0 so very small sections are detected when any part intersects
+        threshold: [0, 0.25, 0.5, 0.75],
       },
     );
 
@@ -1250,10 +1313,12 @@ export default function Home() {
 
     elements.forEach((el) => observer.observe(el!));
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current); // ← add this
+    };
   }, [categories]);
 
-  /* ── cart helpers ── */
   const cartCount = Array.from(cart.values()).reduce((s, c) => s + c.qty, 0);
   const cartItems = Array.from(cart.values());
   const cartTotal = cartItems.reduce((s, c) => s + c.item.price * c.qty, 0);
@@ -1304,19 +1369,20 @@ export default function Home() {
     [allItems, addToCart],
   );
 
-  /* ── computed ── */
   const isLoading = dataState === "loading";
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? "صبح بخیر" : hour < 17 ? "ظهر بخیر" : "عصر بخیر";
+  const greeting =
+    hour < 5 || hour >= 21
+      ? "شب بخیر"
+      : hour < 12
+        ? "صبح بخیر"
+        : hour < 17
+          ? "ظهر بخیر"
+          : "عصر بخیر";
 
   return (
     <>
-      {/* ── CSS animations (scoped keyframes) ── */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap');
-
-        body { font-family: 'Vazirmatn', 'DM Sans', sans-serif !important; }
-
         @keyframes didFadeIn   { from{opacity:0} to{opacity:1} }
         @keyframes didFadeUp   { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
         @keyframes didFadeDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
@@ -1330,7 +1396,6 @@ export default function Home() {
         @keyframes didToastIn  { from{opacity:0;transform:translateX(-50%) translateY(14px) scale(0.9)} to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)} }
         @keyframes didSlideUp  { from{opacity:0;transform:translateX(-50%) translateY(100%)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
 
-        /* skeleton override to match sand theme */
         .skeleton {
           background: linear-gradient(90deg, ${B.sandDark}55 25%, ${B.sandLight}99 50%, ${B.sandDark}55 75%) !important;
           background-size: 400px 100% !important;
@@ -1338,7 +1403,6 @@ export default function Home() {
         }
         @keyframes shimmer { 0%{background-position:-400px 0} 100%{background-position:400px 0} }
 
-        /* desktop layout */
         @media (min-width: 768px) {
           .page-wrap { max-width: 1100px !important; margin: 0 auto !important; padding: 0 24px !important; }
           .items-grid { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 14px !important; }
@@ -1360,17 +1424,29 @@ export default function Home() {
       >
         {/* ═══ HEADER ═══ */}
         <div
-          className="page-header"
+          className="page-header overflow-hidden min-h-[380px]"
           style={{
-            background: B.green,
-            padding: "38px 20px 22px",
             borderRadius: "0 0 32px 32px",
             position: "relative",
             overflow: "hidden",
             animation: "didFadeIn 0.5s ease both",
           }}
         >
-          {/* bg decorations */}
+          <Image
+      src="/img/0.JPG"
+      fill
+      sizes="70vw"
+      objectFit="cover"
+      alt="Picture of the author"
+      className=" rounded-b-3xl lg:rounded-3xl absolute w-full"
+    />
+     <Image
+      src="/img/logo-text.png"
+      width={200}
+      height={200}
+      alt="Picture of the author"
+      className=" rounded-3xl object-cover absolute backdrop-blur-md bg-white/20 z-2 p-2 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+    />
           <div
             style={{
               position: "absolute",
@@ -1393,7 +1469,6 @@ export default function Home() {
               background: "rgba(82,183,136,0.07)",
             }}
           />
-          {/* arch lamp motif (top center) */}
           <div
             style={{
               position: "absolute",
@@ -1406,46 +1481,12 @@ export default function Home() {
             }}
           />
 
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              direction: "rtl",
-              position: "relative",
-            }}
-          >
-            <div>
-              <p
-                style={{
-                  color: B.greenLight,
-                  fontSize: 12,
-                  fontWeight: 500,
-                  letterSpacing: 0.5,
-                }}
-              >
-                {greeting} 🌿
-              </p>
-              {/* Logo text */}
-              <h1
-                style={{
-                  fontSize: 24,
-                  fontWeight: 700,
-                  color: B.cream,
-                  marginTop: 3,
-                  lineHeight: 1.25,
-                  letterSpacing: -0.3,
-                }}
-              >
-                 کافه رستوران دیدار
-              </h1>
-            </div>
-
-            {/* Cart button */}
+      
             <button
+            className="right-5 top-5 absolute"
               onClick={() => setCartOpen(true)}
               style={{
-                background: cartCount > 0 ? B.cream : "rgba(255,255,255,0.12)",
+                background: cartCount > 0 ? B.green : "rgba(255,255,255,0.12)",
                 border: "none",
                 borderRadius: 18,
                 padding: "9px 15px",
@@ -1478,11 +1519,7 @@ export default function Home() {
                 </span>
               )}
             </button>
-          </div>
         </div>
-
-        {/* ═══ DATA BADGE ═══
-          <DataBadge state={dataState} /> */}
 
         {/* ═══ CATEGORY BUTTONS ═══ */}
         <div
@@ -1507,69 +1544,99 @@ export default function Home() {
               whiteSpace: "nowrap",
             }}
           >
-            {isLoading ? (
-              Array.from({ length: 4 }).map((_, i) => <SkeletonCat key={i} />)
-            ) : (
-              categories.map((cat) => {
-                const hasAvailable = allItems
-                  .filter((i) => i.category === cat.id)
-                  .some((i) => i.is_available);
-                const isActive = activeCat === cat.id;
+            {isLoading
+              ? Array.from({ length: 4 }).map((_, i) => <SkeletonCat key={i} />)
+              : categories.map((cat) => {
+                  const hasAvailable = allItems
+                    .filter((i) => i.category === cat.id)
+                    .some((i) => i.is_available);
+                  const isActive = activeCat === cat.id;
 
-                return (
-                  <Button
-                    key={cat.id}
-                    variant={isActive ? "secondary" : "tertiary"}
-                    onPress={() => {
-                      const el = document.getElementById(`category-${cat.id}`);
-                      el?.scrollIntoView({ behavior: "smooth", block: "start" });
-                      setActiveCat(cat.id);
-                    }}
-                    style={{
-                      padding: "8px 14px",
-                      borderRadius: 999,
-                      border: "none",
-                      whiteSpace: "nowrap",
-                      background: isActive
-                        ? B.green
-                        : hasAvailable
+                  return (
+                    <Button
+                      key={cat.id}
+                      variant={isActive ? "secondary" : "tertiary"}
+                      onPress={() => {
+                        const el = document.getElementById(
+                          `category-${cat.id}`,
+                        );
+                        if (!el) return;
+
+                        // Lock the observer, set active immediately
+                        isScrollingRef.current = true;
+                        setActiveCat(cat.id);
+
+                        el.scrollIntoView({
+                          behavior: "smooth",
+                          block: "center",
+                        });
+
+                        // Release after scroll animation finishes (~800ms is enough)
+                        if (scrollTimerRef.current)
+                          clearTimeout(scrollTimerRef.current);
+                        scrollTimerRef.current = setTimeout(() => {
+                          isScrollingRef.current = false;
+                          // ensure active state remains after scroll completes
+                          setActiveCat(cat.id);
+                        }, 900);
+                      }}
+                      style={{
+                        padding: "8px 14px",
+                        borderRadius: 999,
+                        border: "none",
+                        whiteSpace: "nowrap",
+                        background: isActive
+                          ? B.green
+                          : hasAvailable
+                            ? B.cream
+                            : "#f5dada",
+                        color: isActive
                           ? B.cream
-                          : "#f5dada",
-                      color: isActive ? B.cream : hasAvailable ? B.inkMid : B.red,
-                      fontWeight: 600,
-                      fontSize: 13,
-                      cursor: "pointer",
-                      boxShadow: `0 1px 4px ${B.ink}11`,
-                      transition: "all 0.2s ease",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 5,
-                      direction: "rtl",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <span>{CAT_EMOJI[cat.id] ?? "🍽"}</span>
-                    <span>{cat.name}</span>
-                  </Button>
-                );
-              })
-            )}
+                          : hasAvailable
+                            ? B.inkMid
+                            : B.red,
+                        fontWeight: 600,
+                        fontSize: 13,
+                        cursor: "pointer",
+                        boxShadow: `0 1px 4px ${B.ink}11`,
+                        transition: "all 0.2s ease",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 5,
+                        direction: "rtl",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <span>{cat.name}</span>
+                    </Button>
+                  );
+                })}
           </div>
         </div>
 
         {/* ═══ ITEMS BY CATEGORY ═══ */}
         <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
           {isLoading ? (
-            <div style={{ padding: "6px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
-              {Array.from({ length: 7 }).map((_, i) => <SkeletonCard key={i} />)}
+            <div
+              style={{
+                padding: "6px 16px 0",
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+              }}
+            >
+              {Array.from({ length: 7 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
             </div>
           ) : (
             categories.map((category, catIdx) => {
-              const catItems = allItems.filter((i) => i.category === category.id && i.order);
+              const catItems = allItems.filter(
+                (i) => i.category === category.id,
+              );
               if (catItems.length === 0) return null;
 
               const hasAvailable = catItems.some((i) => i.is_available);
-
               return (
                 <Card
                   key={category.id}
@@ -1601,21 +1668,27 @@ export default function Home() {
                     }}
                     className="rounded-2xl"
                   >
-                    <span style={{ fontSize: 24 }}>
-                      {CAT_EMOJI[category.id] ?? "🍽"}
-                    </span>
                     <div style={{ flex: 1, direction: "rtl" }}>
-                      <h3 style={{ fontSize: 16, fontWeight: 700, color: B.ink, margin: 0 }}>
+                      <h3
+                        style={{
+                          fontSize: 16,
+                          fontWeight: 700,
+                          color: B.ink,
+                          margin: 0,
+                        }}
+                      >
                         {category.name}
                       </h3>
                       <p
                         style={{
+                          display : "none",
                           fontSize: 11,
                           color: B.inkLight,
                           margin: "2px 0 0",
                         }}
                       >
-                        {catItems.filter((i) => i.is_available).length} موجود از {catItems.length} مورد
+                        {catItems.filter((i) => i.is_available).length} موجود از{" "}
+                        {catItems.length} مورد
                       </p>
                     </div>
                     {!hasAvailable && (
@@ -1635,11 +1708,18 @@ export default function Home() {
                   </div>
 
                   {/* ── Category Items ── */}
-                  <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div
+                    style={{
+                      padding: "12px 16px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 10,
+                    }}
+                  >
                     {catItems.map((item, i) => {
                       const inCart = cart.get(item.id);
                       const unavail = !item.is_available;
-
+                      const outOfHours = !item.is_available;
                       return (
                         <motion.div
                           key={item.id}
@@ -1657,19 +1737,26 @@ export default function Home() {
                             display: "flex",
                             gap: 12,
                             alignItems: "center",
-                            boxShadow: unavail ? "none" : `0 2px 10px ${B.ink}0d`,
-                            border: inCart
-                              ? `1.5px solid ${B.greenLight}`
-                              : unavail
-                                ? `1px dashed ${B.sandDark}`
-                                : `1px solid ${B.sandDark}44`,
+                            boxShadow: unavail
+                              ? "none"
+                              : `0 2px 10px ${B.ink}0d`,
+                            border: unavail
+                              ? `1px dashed ${B.red}66`
+                              : outOfHours
+                                ? `1px dashed ${B.amber}66`
+                                : inCart
+                                  ? `1.5px solid ${B.greenLight}`
+                                  : `1px solid ${B.sandDark}44`,
                             cursor: "pointer",
                             position: "relative",
                             overflow: "hidden",
-                            filter: unavail ? "saturate(0.25) opacity(0.7)" : "none",
+                            filter: unavail
+                              ? "saturate(0) opacity(0.65)"
+                              : outOfHours
+                                ? "saturate(0.4) opacity(0.82)"
+                                : "none",
                           }}
                         >
-                          {/* qty badge */}
                           {inCart && !unavail && (
                             <div
                               style={{
@@ -1688,7 +1775,6 @@ export default function Home() {
                               ×{inCart.qty}
                             </div>
                           )}
-                          {/* unavailable tag */}
                           {unavail && (
                             <div
                               style={{
@@ -1718,6 +1804,35 @@ export default function Home() {
                             </div>
                           )}
 
+                          {outOfHours && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: 9,
+                                left: 0,
+                                right: 0,
+                                display: "flex",
+                                justifyContent: "center",
+                                zIndex: 4,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  background: B.amber,
+                                  color: "white",
+                                  fontSize: 9,
+                                  fontWeight: 700,
+                                  padding: "2px 10px",
+                                  borderRadius: 5,
+                                  direction: "rtl",
+                                  opacity: 0.9,
+                                }}
+                              >
+                                خارج از ساعت سرویس
+                              </span>
+                            </div>
+                          )}
+
                           <ItemImage
                             item={item}
                             size={64}
@@ -1739,14 +1854,20 @@ export default function Home() {
                                 fontSize: 14,
                                 lineHeight: 1.3,
                                 color: unavail ? B.inkLight : B.ink,
-                                textDecoration: unavail ? "line-through" : "none",
+                                textDecoration: unavail
+                                  ? "line-through"
+                                  : "none",
                               }}
                             >
                               {item.name}
                             </p>
                             <p
                               style={{
-                                color: unavail ? `${B.inkLight}99` : B.inkMid,
+                                color: unavail
+                                  ? `${B.inkLight}99`
+                                  : outOfHours
+                                    ? B.amber
+                                    : B.inkMid,
                                 fontSize: 11,
                                 marginTop: 3,
                                 lineHeight: 1.55,
@@ -1756,8 +1877,10 @@ export default function Home() {
                                 WebkitBoxOrient: "vertical",
                               }}
                             >
-                              {item.description}
-                            </p>
+                              {outOfHours && item.service_name
+                                ? `سرویس ${item.service_name} — از ${item.available_from}`
+                                : item.description}
+                            </p>{" "}
                           </div>
 
                           <div
@@ -1777,16 +1900,18 @@ export default function Home() {
                                 color: unavail ? B.inkLight : B.green,
                               }}
                             >
-                              {item.formatted_price}
+                              {formatPrice(item.price)}
                             </span>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (!unavail) addToCart(item);
                               }}
-                              disabled={unavail}
+                              disabled={unavail || outOfHours}
                               title={
-                                unavail ? "این آیتم موجود نیست" : "افزودن به سبد"
+                                unavail
+                                  ? "این آیتم موجود نیست"
+                                  : "افزودن به سبد"
                               }
                               style={{
                                 width: 34,
@@ -1807,10 +1932,11 @@ export default function Home() {
                                 boxShadow: unavail
                                   ? "none"
                                   : `0 3px 8px ${B.green}44`,
-                                transition: "transform 0.18s ease, background 0.18s ease",
+                                transition:
+                                  "transform 0.18s ease, background 0.18s ease",
                               }}
                             >
-                              {unavail ? "✕" : inCart ? "✓" : "+"}
+                              {unavail ? "✕" : outOfHours ? "🕐" : inCart ? "✓" : "+"}
                             </button>
                           </div>
                         </motion.div>
@@ -1818,7 +1944,6 @@ export default function Home() {
                     })}
                   </div>
 
-                  {/* ── Category Separator ── */}
                   {catIdx < categories.length - 1 && (
                     <div
                       style={{
@@ -1918,7 +2043,7 @@ export default function Home() {
         <footer className="items-center hidden justify-center py-3">
           <a
             className="flex items-center gap-1 text-current no-underline"
-            href="https://heroui.com?utm_source=next-app-template"
+            href=""
             rel="noopener noreferrer"
             target="_blank"
           >

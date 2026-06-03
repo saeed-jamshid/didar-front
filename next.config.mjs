@@ -1,8 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-     typescript: {
+  typescript: {
     //TODO
     ignoreBuildErrors: true,
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "didarplace.ir",
+        pathname: "/**",
+      },
+    ],
   },
 };
 

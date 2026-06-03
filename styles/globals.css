@@ -15,3 +15,34 @@
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("/fonts/Vazirmatn-VariableFont_wght.ttf");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("/fonts/static/Vazirmatn-Bold.ttf");
+  font-weight: 400;
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Playwrite GB S";
+  src: url("/fonts/PlaywriteGBS-VariableFont_wght.ttf");
+  font-optical-sizing: auto;
+}
+
+@font-face {
+  font-family: "A_Soraya";
+  src: url("/fonts/A_Soraya.ttf");
+  font-optical-sizing: auto;
+}
+
+body { font-family: 'Vazirmatn', 'A_Soraya', sans-serif !important; }

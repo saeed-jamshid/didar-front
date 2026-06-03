@@ -82,7 +82,9 @@ export default defineConfig([globalIgnores([
             version: "detect",
         },
     },
-
+    rules: {
+         "@typescript-eslint/no-explicit-any": "off",
+       },
     files: ["**/*.ts", "**/*.tsx"],
 
     rules: {
