@@ -1436,7 +1436,7 @@ export default function Home() {
           }}
         >
           <Image
-            src={headerImage}
+            src="/img/0.JPG"
             fill
             sizes="70vw"
             objectFit="cover"
@@ -1485,7 +1485,7 @@ export default function Home() {
             }}
           />
 
-      
+
             <button
             className="right-5 top-5 absolute"
               onClick={() => setCartOpen(true)}

@@ -59,7 +59,7 @@ async function fetchAllPages<T>(firstUrl: string): Promise<T[]> {
       url = null;
     } else {
       collected.push(...data.results);
-      url = data.next ?? null;
+      url = data.next ? data.next.replace(/^http:\/\//i, "https://") : null;
     }
   }
 
