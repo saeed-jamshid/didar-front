@@ -1,5 +1,6 @@
 "use client";
 
+import { Badge } from "@heroui/react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
@@ -70,7 +71,7 @@ function useIsMobile() {
    ════════════════════════════════════════════════ */
 function ItemImage({
   item,
-  size = 64,
+  size = 75,
   radius = 14,
   grayscale = false,
 }: {
@@ -81,14 +82,13 @@ function ItemImage({
 }) {
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState(false);
-  const showReal = item.has_image && item.image_url && !err;
+  const showReal = (item.has_image && item.image_url) || err;
 
   return (
     <div
       style={{
         width: size,
         height: size,
-        borderRadius: radius,
         flexShrink: 0,
         overflow: "hidden",
         position: "relative",
@@ -116,7 +116,7 @@ function ItemImage({
 
       {showReal ? (
         <Image
-          src={item.image_url!}
+          src={item.image_url?.replace(/^http:\/\//i, "https://") || ""}
           alt={item.name}
           fill
           sizes={`${size}px`}
@@ -155,10 +155,10 @@ function ItemImage({
 function SkeletonCard() {
   return (
     <div
+      className="flex-row-reverse overflow-hidden"
       style={{
         background: B.cream,
         borderRadius: 18,
-        padding: "14px 16px",
         display: "flex",
         gap: 14,
         alignItems: "center",
@@ -166,8 +166,8 @@ function SkeletonCard() {
       }}
     >
       <div
-        className="skeleton"
-        style={{ width: 64, height: 64, borderRadius: 14, flexShrink: 0 }}
+        className="skeleton p-0 rounede rounded-l-xl"
+        style={{ width: 75, height: 75, flexShrink: 0 }}
       />
       <div style={{ flex: 1 }}>
         <div
@@ -188,11 +188,7 @@ function SkeletonCard() {
           gap: 9,
         }}
       >
-        <div className="skeleton" style={{ height: 13, width: 72 }} />
-        <div
-          className="skeleton"
-          style={{ width: 34, height: 34, borderRadius: 10 }}
-        />
+        <div className="skeleton h-20 w-10 mr-auto" />
       </div>
     </div>
   );
@@ -452,7 +448,7 @@ function ItemModal({
 
         {showReal ? (
           <Image
-            src={item.image_url!}
+            src={item.image_url?.replace(/^http:\/\//i, "https://") || ""}
             alt={item.name}
             fill
             sizes="(max-width: 768px) 100vw, 480px"
@@ -990,7 +986,14 @@ function CartPanel({
                 animation: "didFadeUp 0.3s ease both",
               }}
             >
-              <ItemImage item={item} size={48} radius={12} />
+              <ItemImage
+                item={item}
+                size={48}
+                radius={12}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: Math.min(i * 0.05, 0.2) }}
+              />
               <div
                 style={{
                   flex: 1,
@@ -1128,7 +1131,7 @@ function CartPanel({
             <div style={{ textAlign: "right" }}>
               <p style={{ fontSize: 11, color: B.inkLight }}>مبلغ کل</p>
               <p style={{ fontSize: 19, fontWeight: 700, color: B.green }}>
-                {total.toLocaleString("fa-IR")} تومان
+                {formatPrice(total).toLocaleString("fa-IR")}
               </p>
             </div>
           </div>
@@ -1215,9 +1218,6 @@ export default function Home() {
   const [cart, setCart] = useState<Map<number, CartItem>>(new Map());
   const bumpRef = useRef<HTMLSpanElement>(null);
 
-  const isScrollingRef = useRef(false);
-  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   /* ── load cart from localStorage ── */
   useEffect(() => {
     try {
@@ -1274,7 +1274,7 @@ export default function Home() {
       const sorted = [...its].sort((a, b) => a.order - b.order);
       setAllItems(sorted);
       // Ensure an initial active category is selected when data loads
-      setActiveCat((prev) => prev ?? (sortedCats[0]?.id ?? null));
+      //setActiveCat((prev) => prev ?? sortedCats[0]?.id ?? null);
       setDataState(live ? "live" : "error");
     };
     load().catch(() => {
@@ -1284,43 +1284,6 @@ export default function Home() {
       alive = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (!categories.length) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (isScrollingRef.current) return; // ← ignore while programmatic scroll runs
-
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-
-        if (visible.length) {
-          const id = Number(visible[0].target.id.replace("category-", ""));
-          setActiveCat(id || (categories[0]?.id ?? null));
-          // Auto-scroll the active category to center when detected during manual scroll
-          visible[0].target.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
-      },
-      {
-        rootMargin: "-120px 0px -60% 0px",
-        // include 0 so very small sections are detected when any part intersects
-        threshold: [0, 0.25, 0.5, 0.75],
-      },
-    );
-
-    const elements = categories
-      .map((cat) => document.getElementById(`category-${cat.id}`))
-      .filter(Boolean);
-
-    elements.forEach((el) => observer.observe(el!));
-
-    return () => {
-      observer.disconnect();
-      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current); // ← add this
-    };
-  }, [categories]);
 
   const cartCount = Array.from(cart.values()).reduce((s, c) => s + c.qty, 0);
   const cartItems = Array.from(cart.values());
@@ -1372,6 +1335,81 @@ export default function Home() {
     [allItems, addToCart],
   );
 
+  const activeCatRef = useRef<number | null>(null);
+  const suppressScrollSpyRef = useRef(false);
+  const rafRef = useRef<number | null>(null);
+
+  // keep ref in sync so the scroll handler always reads latest without re-binding
+  useEffect(() => {
+    activeCatRef.current = activeCat;
+  }, [activeCat]);
+
+  useEffect(() => {
+    if (!categories.length) return;
+
+    const STICKY_OFFSET = 130; // height of sticky header + category bar
+
+    const computeActive = () => {
+      if (suppressScrollSpyRef.current) return;
+
+      let current: number | null = null;
+      for (const cat of categories) {
+        const el = document.getElementById(`category-${cat.id}`);
+        if (!el) continue;
+        const top = el.getBoundingClientRect().top;
+        if (top - STICKY_OFFSET <= 0) {
+          current = cat.id;
+        } else {
+          break;
+        }
+      }
+      if (current === null) current = categories[0]?.id ?? null;
+
+      if (current !== activeCatRef.current) {
+        setActiveCat(current);
+      }
+    };
+
+    const onScroll = () => {
+      if (rafRef.current) return;
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        computeActive();
+      });
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    computeActive(); // initial
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [categories]);
+
+  const handleCategoryClick = (catId: number) => {
+    const el = document.getElementById(`category-${catId}`);
+    if (!el) return;
+
+    // immediately set active and suppress scroll-spy until the smooth scroll settles
+    suppressScrollSpyRef.current = true;
+    setActiveCat(catId);
+
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    const release = () => {
+      suppressScrollSpyRef.current = false;
+      window.removeEventListener("scrollend", release);
+    };
+
+    if ("onscrollend" in window) {
+      window.addEventListener("scrollend", release, { once: true });
+    } else {
+      // Safari fallback — smooth scrolls rarely exceed ~1s
+      setTimeout(release, 1000);
+    }
+  };
+
   const isLoading = dataState === "loading";
   const hour = new Date().getHours();
   const greeting =
@@ -1382,6 +1420,16 @@ export default function Home() {
         : hour < 17
           ? "ظهر بخیر"
           : "عصر بخیر";
+
+  useEffect(() => {
+    if (activeCat === null) return;
+    const btn = document.getElementById(`cat-btn-${activeCat}`);
+    btn?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "center",
+    });
+  }, [activeCat]);
 
   return (
     <>
@@ -1427,7 +1475,7 @@ export default function Home() {
       >
         {/* ═══ HEADER ═══ */}
         <div
-          className="page-header overflow-hidden min-h-[380px]"
+          className="page-header relative overflow-hidden min-h-[380px]"
           style={{
             borderRadius: "0 0 32px 32px",
             position: "relative",
@@ -1435,6 +1483,31 @@ export default function Home() {
             animation: "didFadeIn 0.5s ease both",
           }}
         >
+          <Badge
+            className="right-20 hidden top-11/12 z-2 text-[#cfc5b4] py-1 px-2 font-bold bg-[rgb(26,71,49)]"
+            variant="soft"
+            size="sm"
+          >
+            به قیمت های منو ۱۰درصد مالیات برارزش افزوده اضافه میگردد
+          </Badge>
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              insetInline: 0,
+              background: `${B.green}cc`,
+              color: B.cream,
+              fontSize: 11,
+              fontWeight: 600,
+              textAlign: "center",
+              padding: "6px 12px",
+              direction: "rtl",
+              backdropFilter: "blur(4px)",
+              zIndex: 5,
+            }}
+          >
+            به قیمت‌های منو ۱۰٪ مالیات بر ارزش افزوده اضافه می‌گردد
+          </div>
           <Image
             src="/img/0.JPG"
             fill
@@ -1444,13 +1517,13 @@ export default function Home() {
             alt="Header background"
             className="rounded-b-3xl lg:rounded-3xl absolute w-full"
           />
-     <Image
-      src="/img/logo-text.png"
-      width={200}
-      height={200}
-      alt="Picture of the author"
-      className=" rounded-3xl object-cover absolute backdrop-blur-md bg-white/20 z-2 p-2 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
-    />
+          <Image
+            src="/img/logo-text.png"
+            width={200}
+            height={200}
+            alt="Picture of the author"
+            className=" rounded-3xl object-cover absolute backdrop-blur-md bg-white/20 z-2 p-2 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+          />
           <div
             style={{
               position: "absolute",
@@ -1485,44 +1558,43 @@ export default function Home() {
             }}
           />
 
-
-            <button
+          <button
             className="right-5 top-5 absolute"
-              onClick={() => setCartOpen(true)}
-              style={{
-                background: cartCount > 0 ? B.green : "rgba(255,255,255,0.12)",
-                border: "none",
-                borderRadius: 18,
-                padding: "9px 15px",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                cursor: "pointer",
-                color: cartCount > 0 ? B.green : `${B.cream}cc`,
-                fontWeight: 700,
-                fontSize: 14,
-                transition: "all 0.25s ease",
-                boxShadow:
-                  cartCount > 0 ? `0 4px 14px rgba(26,71,49,0.35)` : "none",
-              }}
-            >
-              <span>🛒</span>
-              {cartCount > 0 && (
-                <span
-                  ref={bumpRef}
-                  style={{
-                    background: B.green,
-                    borderRadius: 9,
-                    padding: "1px 7px",
-                    fontSize: 12,
-                    color: B.cream,
-                    fontWeight: 700,
-                  }}
-                >
-                  {cartCount}
-                </span>
-              )}
-            </button>
+            onClick={() => setCartOpen(true)}
+            style={{
+              background: cartCount > 0 ? B.green : "rgba(255,255,255,0.12)",
+              border: "none",
+              borderRadius: 18,
+              padding: "9px 15px",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              cursor: "pointer",
+              color: cartCount > 0 ? B.green : `${B.cream}cc`,
+              fontWeight: 700,
+              fontSize: 14,
+              transition: "all 0.25s ease",
+              boxShadow:
+                cartCount > 0 ? `0 4px 14px rgba(26,71,49,0.35)` : "none",
+            }}
+          >
+            <span>🛒</span>
+            {cartCount > 0 && (
+              <span
+                ref={bumpRef}
+                style={{
+                  background: B.green,
+                  borderRadius: 9,
+                  padding: "1px 7px",
+                  fontSize: 12,
+                  color: B.cream,
+                  fontWeight: 700,
+                }}
+              >
+                {cartCount}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* ═══ CATEGORY BUTTONS ═══ */}
@@ -1559,31 +1631,8 @@ export default function Home() {
                   return (
                     <Button
                       key={cat.id}
-                      variant={isActive ? "secondary" : "tertiary"}
-                      onPress={() => {
-                        const el = document.getElementById(
-                          `category-${cat.id}`,
-                        );
-                        if (!el) return;
-
-                        // Lock the observer, set active immediately
-                        isScrollingRef.current = true;
-                        setActiveCat(cat.id);
-
-                        el.scrollIntoView({
-                          behavior: "smooth",
-                          block: "center",
-                        });
-
-                        // Release after scroll animation finishes (~800ms is enough)
-                        if (scrollTimerRef.current)
-                          clearTimeout(scrollTimerRef.current);
-                        scrollTimerRef.current = setTimeout(() => {
-                          isScrollingRef.current = false;
-                          // ensure active state remains after scroll completes
-                          setActiveCat(cat.id);
-                        }, 900);
-                      }}
+                      id={`cat-btn-${cat.id}`}
+                      onPress={() => handleCategoryClick(cat.id)}
                       style={{
                         padding: "8px 14px",
                         borderRadius: 999,
@@ -1685,7 +1734,7 @@ export default function Home() {
                       </h3>
                       <p
                         style={{
-                          display : "none",
+                          display: "none",
                           fontSize: 11,
                           color: B.inkLight,
                           margin: "2px 0 0",
@@ -1713,8 +1762,8 @@ export default function Home() {
 
                   {/* ── Category Items ── */}
                   <div
+                    className="px-0 py-3 md:px-4"
                     style={{
-                      padding: "12px 16px",
                       display: "flex",
                       flexDirection: "column",
                       gap: 10,
@@ -1737,8 +1786,8 @@ export default function Home() {
                               : `url('/Asset 6@9x.png') right/cover, ${B.cream}`,
                             backgroundBlendMode: unavail ? "normal" : "overlay",
                             borderRadius: 18,
-                            padding: "14px 16px",
                             display: "flex",
+                            flexDirection: "row-reverse",
                             gap: 12,
                             alignItems: "center",
                             boxShadow: unavail
@@ -1761,6 +1810,7 @@ export default function Home() {
                                 : "none",
                           }}
                         >
+                          {/* badges (inCart / unavail / outOfHours) stay as-is, positions unchanged */}
                           {inCart && !unavail && (
                             <div
                               style={{
@@ -1807,7 +1857,6 @@ export default function Home() {
                               </span>
                             </div>
                           )}
-
                           {outOfHours && (
                             <div
                               style={{
@@ -1837,111 +1886,124 @@ export default function Home() {
                             </div>
                           )}
 
+                          {/* image — right side */}
                           <ItemImage
                             item={item}
-                            size={64}
-                            radius={14}
+                            size={75}
                             grayscale={unavail}
                           />
 
+                          {/* text + actions — left side */}
                           <div
                             style={{
                               flex: 1,
                               minWidth: 0,
                               direction: "rtl",
                               textAlign: "right",
-                            }}
-                          >
-                            <p
-                              style={{
-                                fontWeight: 600,
-                                fontSize: 14,
-                                lineHeight: 1.3,
-                                color: unavail ? B.inkLight : B.ink,
-                                textDecoration: unavail
-                                  ? "line-through"
-                                  : "none",
-                              }}
-                            >
-                              {item.name}
-                            </p>
-                            <p
-                              style={{
-                                color: unavail
-                                  ? `${B.inkLight}99`
-                                  : outOfHours
-                                    ? B.amber
-                                    : B.inkMid,
-                                fontSize: 11,
-                                marginTop: 3,
-                                lineHeight: 1.55,
-                                overflow: "hidden",
-                                display: "-webkit-box",
-                                WebkitLineClamp: 2,
-                                WebkitBoxOrient: "vertical",
-                              }}
-                            >
-                              {outOfHours && item.service_name
-                                ? `سرویس ${item.service_name} — از ${item.available_from}`
-                                : item.description}
-                            </p>{" "}
-                          </div>
-
-                          <div
-                            style={{
                               display: "flex",
-                              flexDirection: "column",
-                              alignItems: "flex-end",
+                              justifyContent: "space-between",
+                              alignSelf: "stretch",
                               gap: 8,
-                              flexShrink: 0,
                             }}
                           >
-                            <span
+                            <div className="my-auto mr-2">
+                              <p
+                                style={{
+                                  fontWeight: 600,
+                                  fontSize: 14,
+                                  lineHeight: 1.3,
+                                  color: unavail ? B.inkLight : B.ink,
+                                  textDecoration: unavail
+                                    ? "line-through"
+                                    : "none",
+                                }}
+                              >
+                                {item.name}
+                              </p>
+                              <span
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  whiteSpace: "nowrap",
+                                  color: unavail ? B.inkLight : B.green,
+                                  display: "block",
+                                  marginTop: 4,
+                                }}
+                              >
+                                {formatPrice(item.price)}
+                              </span>
+                              <p
+                                style={{
+                                  color: unavail
+                                    ? `${B.inkLight}99`
+                                    : outOfHours
+                                      ? B.amber
+                                      : B.inkMid,
+                                  fontSize: 11,
+                                  marginTop: 3,
+                                  lineHeight: 1.55,
+                                  overflow: "hidden",
+                                  display: "-webkit-box",
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: "vertical",
+                                }}
+                              >
+                                {outOfHours && item.service_name
+                                  ? `سرویس ${item.service_name} — از ${item.available_from}`
+                                  : item.description}
+                              </p>
+                            </div>
+
+                            {/* add button — bottom left */}
+                            <div
+                              className="h-full"
                               style={{
-                                fontSize: 12,
-                                fontWeight: 700,
-                                whiteSpace: "nowrap",
-                                color: unavail ? B.inkLight : B.green,
-                              }}
-                            >
-                              {formatPrice(item.price)}
-                            </span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (!unavail) addToCart(item);
-                              }}
-                              disabled={unavail || outOfHours}
-                              title={
-                                unavail
-                                  ? "این آیتم موجود نیست"
-                                  : "افزودن به سبد"
-                              }
-                              style={{
-                                width: 34,
-                                height: 34,
-                                borderRadius: 10,
-                                border: "none",
-                                background: unavail
-                                  ? B.sandDark
-                                  : inCart
-                                    ? B.greenLight
-                                    : B.green,
-                                color: unavail ? B.inkLight : B.cream,
-                                fontSize: unavail ? 13 : 19,
-                                cursor: unavail ? "not-allowed" : "pointer",
                                 display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                boxShadow: unavail
-                                  ? "none"
-                                  : `0 3px 8px ${B.green}44`,
-                                transition:
-                                  "transform 0.18s ease, background 0.18s ease",
+                                justifyContent: "flex-end",
                               }}
                             >
-                              {unavail ? "✕" : outOfHours ? "🕐" : inCart ? "✓" : "+"}
-                            </button>
+                              <button
+                                className="h-full"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!unavail) addToCart(item);
+                                }}
+                                disabled={unavail || outOfHours}
+                                title={
+                                  unavail
+                                    ? "این آیتم موجود نیست"
+                                    : "افزودن به سبد"
+                                }
+                                style={{
+                                  width: 34,
+                                  border: "none",
+                                  background: unavail
+                                    ? B.sandDark
+                                    : inCart
+                                      ? B.greenLight
+                                      : B.green,
+                                  color: unavail ? B.inkLight : B.cream,
+                                  fontSize: unavail ? 13 : 19,
+                                  cursor: unavail ? "not-allowed" : "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  boxShadow: unavail
+                                    ? "none"
+                                    : `0 3px 8px ${B.green}44`,
+                                  transition:
+                                    "transform 0.18s ease, background 0.18s ease",
+                                }}
+                              >
+                                {unavail
+                                  ? "✕"
+                                  : outOfHours
+                                    ? "🕐"
+                                    : inCart
+                                      ? "✓"
+                                      : "+"}
+                              </button>
+                            </div>
                           </div>
                         </motion.div>
                       );
@@ -1997,7 +2059,7 @@ export default function Home() {
                 {cartCount} آیتم انتخاب شده
               </p>
               <p style={{ color: B.cream, fontWeight: 700, fontSize: 15 }}>
-                {cartTotal.toLocaleString("fa-IR")} تومان
+                {formatPrice(cartTotal).toLocaleString("fa-IR")}
               </p>
             </div>
             <div
