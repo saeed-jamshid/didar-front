@@ -52,7 +52,7 @@ const CAT_EMOJI: Record<number, string> = {
   4: "🍰",
 };
 function formatPrice(raw: number): string {
-  return (raw * 1000).toLocaleString("fa-IR") + " تومان";
+  return (raw * 1).toLocaleString("fa-IR") + " تومان";
 }
 
 function useIsMobile() {
@@ -170,10 +170,6 @@ function SkeletonCard() {
         style={{ width: 75, height: 75, flexShrink: 0 }}
       />
       <div style={{ flex: 1 }}>
-        <div
-          className="skeleton"
-          style={{ height: 14, width: "50%", marginBottom: 9 }}
-        />
         <div className="skeleton" style={{ height: 11, width: "78%" }} />
         <div
           className="skeleton"
@@ -1512,10 +1508,9 @@ export default function Home() {
             src="/img/0.JPG"
             fill
             sizes="70vw"
-            objectFit="cover"
             priority
             alt="Header background"
-            className="rounded-b-3xl lg:rounded-3xl absolute w-full"
+            className="rounded-b-3xl object-cover lg:rounded-3xl absolute w-full"
           />
           <Image
             src="/img/logo-text.png"
@@ -1668,7 +1663,7 @@ export default function Home() {
         </div>
 
         {/* ═══ ITEMS BY CATEGORY ═══ */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+        <div className="bg-[#e1dacf]!" style={{ display: "flex", flexDirection: "column", gap: 0 }}>
           {isLoading ? (
             <div
               style={{
@@ -1698,18 +1693,20 @@ export default function Home() {
                     <section {...props}>{children}</section>
                   )}
                   className="bg-white/20 mt-10"
-                  style={{ display: "flex", flexDirection: "column" }}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
                 >
                   {/* ── Category Header ── */}
                   <div
                     style={{
                       position: "sticky",
                       top: 60,
-                      background: `url('/Asset 14@9x.png') center/cover, ${B.sand}`,
                       backgroundBlendMode: "overlay",
                       zIndex: 30,
-                      paddingTop: 12,
-                      paddingBottom: 8,
+                      paddingTop: 6,
+                      paddingBottom: 6,
                       paddingLeft: 16,
                       paddingRight: 16,
                       borderBottom: `2px solid ${B.sandDark}55`,
@@ -1717,10 +1714,19 @@ export default function Home() {
                       display: "flex",
                       alignItems: "center",
                       gap: 10,
-                      animation: "didFadeDown 0.3s ease both",
+                      animation: "didFadeDown 0.3s ease both w-full",
                     }}
-                    className="rounded-2xl"
+                    className="rounded-2xl bg-[#cfc5b4] shadow"
                   >
+                    <Image
+                      className="object-contain"
+                      loading="eager"
+                      width={12}
+                      quality={80}
+                      height={12}
+                      src="/tree.png"
+                      alt="tree"
+                    />
                     <div style={{ flex: 1, direction: "rtl" }}>
                       <h3
                         style={{
