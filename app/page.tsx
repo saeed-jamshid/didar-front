@@ -988,7 +988,7 @@ function CartPanel({
                 radius={12}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: Math.min(i * 0.05, 0.2) }}
+                transition={{ delay: Math.min(0.05, 0.2) }}
               />
               <div
                 style={{
@@ -1463,7 +1463,6 @@ export default function Home() {
       <div
         className="page-wrap"
         style={{
-          background: B.sand,
           minHeight: "100vh",
           paddingBottom: 110,
           fontFamily: "inherit",
@@ -1471,7 +1470,7 @@ export default function Home() {
       >
         {/* ═══ HEADER ═══ */}
         <div
-          className="page-header relative overflow-hidden min-h-[380px]"
+          className="page-header  relative overflow-hidden min-h-[380px]"
           style={{
             borderRadius: "0 0 32px 32px",
             position: "relative",
@@ -1594,6 +1593,7 @@ export default function Home() {
 
         {/* ═══ CATEGORY BUTTONS ═══ */}
         <div
+          className="rounded-2xl mt-4"
           style={{
             position: "sticky",
             top: 0,
@@ -1692,7 +1692,7 @@ export default function Home() {
                   render={({ children, ...props }) => (
                     <section {...props}>{children}</section>
                   )}
-                  className="bg-white/20 mt-10"
+                  className="bg-white/20 mt-6"
                   style={{
                     display: "flex",
                     flexDirection: "column",
