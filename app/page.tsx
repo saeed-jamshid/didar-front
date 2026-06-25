@@ -345,9 +345,29 @@ function ItemModal({
   onSelectItem: (item: MenuItem) => void;
 }) {
   const [added, setAdded] = useState(false);
-  const [imgLoaded, setImgLoaded] = useState(false);
-  const [imgErr, setImgErr] = useState(false);
   const [direction, setDirection] = useState<"next" | "prev">("next");
+
+  const [imgErr, setImgErr] = useState(false);
+  // Check if browser already has this image cached
+  const isAlreadyCached = useCallback((src: string) => {
+    if (typeof window === "undefined") return false;
+    const img = new window.Image();
+    img.src = src;
+    return img.complete; // true = already in browser cache
+  }, []);
+
+  const normalizedSrc =
+    item?.image_url?.replace(/^http:\/\//i, "https://") ?? "";
+  const [imgLoaded, setImgLoaded] = useState(() =>
+    isAlreadyCached(normalizedSrc),
+  );
+
+  useEffect(() => {
+    setAdded(false);
+    setImgErr(false);
+    const src = item?.image_url?.replace(/^http:\/\//i, "https://") ?? "";
+    setImgLoaded(isAlreadyCached(src)); // pre-warm from cache instead of always false
+  }, [item?.id]);
 
   useEffect(() => {
     setAdded(false);
@@ -449,12 +469,10 @@ function ItemModal({
             fill
             sizes="(max-width: 768px) 100vw, 480px"
             style={{
-              objectFit: "cover",
+              objectFit: "contain",
               opacity: imgLoaded ? 1 : 0,
               transition: "opacity 0.5s ease",
             }}
-            placeholder={item.blur_data_url ? "blur" : "empty"}
-            blurDataURL={item.blur_data_url}
             onLoad={() => setImgLoaded(true)}
             onError={() => setImgErr(true)}
             priority
@@ -1663,7 +1681,10 @@ export default function Home() {
         </div>
 
         {/* ═══ ITEMS BY CATEGORY ═══ */}
-        <div className="bg-[#e1dacf]!" style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+        <div
+          className="bg-[#e1dacf]!"
+          style={{ display: "flex", flexDirection: "column", gap: 0 }}
+        >
           {isLoading ? (
             <div
               style={{
