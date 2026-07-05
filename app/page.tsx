@@ -424,7 +424,7 @@ function ItemModal({
         display: "flex",
         flexDirection: "column",
         background: B.cream,
-        borderRadius: isMobile ? "26px 26px 0 0" : "120px 120px 24px 24px",
+        borderRadius: isMobile ? "26px 26px 0 0" : "2rem",
         overflow: "hidden",
         maxWidth: isMobile ? undefined : 480,
         width: isMobile ? "100%" : "90vw",
