@@ -51,8 +51,10 @@ const CAT_EMOJI: Record<number, string> = {
   3: "🍵",
   4: "🍰",
 };
+const TAX_RATE = 0.1;
+
 function formatPrice(raw: number): string {
-  return (raw * 1).toLocaleString("fa-IR") + " تومان";
+  return `${Math.round(raw * 1_000).toLocaleString("fa-IR")} تومان`;
 }
 
 function useIsMobile() {
@@ -876,7 +878,9 @@ function CartPanel({
   onRemove: (id: number) => void;
   onDelete: (id: number) => void;
 }) {
-  const total = cartItems.reduce((s, c) => s + c.item.price * c.qty, 0);
+  const subtotal = cartItems.reduce((s, c) => s + c.item.price * c.qty, 0);
+  const tax = subtotal * TAX_RATE;
+  const total = subtotal + tax;
   const totalCount = cartItems.reduce((s, c) => s + c.qty, 0);
 
   const panel = (
@@ -1027,7 +1031,7 @@ function CartPanel({
                     marginTop: 2,
                   }}
                 >
-                  {formatPrice(item.price * qty).toLocaleString("fa-IR")} تومان
+                  {formatPrice(item.price * qty)}
                 </p>
               </div>
               <div
@@ -1130,23 +1134,18 @@ function CartPanel({
             borderTop: `1px solid ${B.sandDark}44`,
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 14,
-              direction: "rtl",
-            }}
-          >
-            <span style={{ color: B.inkMid, fontSize: 13 }}>
-              {totalCount} آیتم
-            </span>
-            <div style={{ textAlign: "right" }}>
-              <p style={{ fontSize: 11, color: B.inkLight }}>مبلغ کل</p>
-              <p style={{ fontSize: 19, fontWeight: 700, color: B.green }}>
-                {formatPrice(total).toLocaleString("fa-IR")}
-              </p>
+          <div style={{ direction: "rtl", marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: B.inkMid }}>
+              <span>جمع اقلام ({totalCount} آیتم)</span>
+              <span>{formatPrice(subtotal)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 12, color: B.inkMid }}>
+              <span>مالیات بر ارزش افزوده (۱۰٪)</span>
+              <span>{formatPrice(tax)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, paddingTop: 12, borderTop: `1px dashed ${B.sandDark}`, fontWeight: 700 }}>
+              <span style={{ color: B.ink }}>مبلغ قابل پرداخت</span>
+              <span style={{ fontSize: 19, color: B.green }}>{formatPrice(total)}</span>
             </div>
           </div>
         </div>
@@ -1301,7 +1300,8 @@ export default function Home() {
 
   const cartCount = Array.from(cart.values()).reduce((s, c) => s + c.qty, 0);
   const cartItems = Array.from(cart.values());
-  const cartTotal = cartItems.reduce((s, c) => s + c.item.price * c.qty, 0);
+  const cartSubtotal = cartItems.reduce((s, c) => s + c.item.price * c.qty, 0);
+  const cartTotal = cartSubtotal * (1 + TAX_RATE);
 
   const bump = () => {
     if (!bumpRef.current) return;
@@ -1501,7 +1501,7 @@ export default function Home() {
             variant="soft"
             size="sm"
           >
-            به قیمت های منو ۱۰درصد مالیات برارزش افزوده اضافه میگردد
+            ۱۰٪ مالیات بر ارزش افزوده هنگام محاسبه سبد اضافه می‌شود
           </Badge>
           <div
             style={{
@@ -1519,7 +1519,7 @@ export default function Home() {
               zIndex: 5,
             }}
           >
-            به قیمت‌های منو ۱۰٪ مالیات بر ارزش افزوده اضافه می‌گردد
+            ۱۰٪ مالیات بر ارزش افزوده هنگام محاسبه سبد اضافه می‌شود
           </div>
           <Image
             src="/img/0.JPG"
@@ -2086,7 +2086,7 @@ export default function Home() {
                 {cartCount} آیتم انتخاب شده
               </p>
               <p style={{ color: B.cream, fontWeight: 700, fontSize: 15 }}>
-                {formatPrice(cartTotal).toLocaleString("fa-IR")}
+                {formatPrice(cartTotal)}
               </p>
             </div>
             <div
