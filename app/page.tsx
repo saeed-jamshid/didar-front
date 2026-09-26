@@ -84,7 +84,7 @@ function ItemImage({
 }) {
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState(false);
-  const showReal = (item.has_image && item.image_url) || err;
+  const showReal = Boolean(item.has_image && item.image_url && !err);
 
   return (
     <div

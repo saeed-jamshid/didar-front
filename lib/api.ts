@@ -27,6 +27,7 @@ export interface MenuItem {
   image: string | null;
   image_url: string | null;
   has_image: boolean;
+  blur_data_url: string | null;
   is_time_available?: boolean;   // در ساعت سرویس هست یا نه
   available_from?: string;      // مثلاً "17:00"
   service_name?: string;
