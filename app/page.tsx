@@ -94,7 +94,7 @@ function ItemImage({
         flexShrink: 0,
         overflow: "hidden",
         position: "relative",
-        background: item.blur_data_url
+        background: showReal && item.blur_data_url
           ? `url(${item.blur_data_url}) center/cover`
           : `linear-gradient(145deg, ${B.greenPale}, ${B.cream})`,
         filter: grayscale ? "grayscale(1) opacity(0.5)" : "none",
@@ -441,7 +441,7 @@ function ItemModal({
           position: "relative",
           height: isMobile ? 190 : 260,
           flexShrink: 0,
-          background: item.blur_data_url
+          background: showReal && item.blur_data_url
             ? `url(${item.blur_data_url}) center/cover`
             : `linear-gradient(160deg, ${B.greenPale}, ${B.sandLight})`,
           overflow: "hidden",
