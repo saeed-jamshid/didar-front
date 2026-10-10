@@ -128,7 +128,7 @@ function ItemImage({
             transition: "opacity 0.45s ease",
           }}
           placeholder={item.blur_data_url ? "blur" : "empty"}
-          blurDataURL={item.blur_data_url}
+          blurDataURL={item.blur_data_url ?? undefined}
           onLoad={() => setLoaded(true)}
           onError={() => setErr(true)}
         />
@@ -811,6 +811,7 @@ function ItemModal({
     return (
       <>
         <div
+          role="presentation"
           onClick={onClose}
           style={{
             position: "fixed",
@@ -839,6 +840,7 @@ function ItemModal({
   return (
     <>
       <div
+        role="presentation"
         onClick={onClose}
         style={{
           position: "fixed",
@@ -852,7 +854,7 @@ function ItemModal({
           justifyContent: "center",
         }}
       >
-        <div onClick={(e) => e.stopPropagation()}>
+        <div role="presentation" onClick={(e) => e.stopPropagation()}>
           <AnimatePresence mode="wait">{inner}</AnimatePresence>
         </div>
       </div>
@@ -1008,9 +1010,6 @@ function CartPanel({
                 item={item}
                 size={48}
                 radius={12}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: Math.min(0.05, 0.2) }}
               />
               <div
                 style={{
@@ -1157,6 +1156,7 @@ function CartPanel({
     return (
       <>
         <div
+          role="presentation"
           onClick={onClose}
           style={{
             position: "fixed",
@@ -1185,6 +1185,7 @@ function CartPanel({
   return (
     <>
       <div
+        role="presentation"
         onClick={onClose}
         style={{
           position: "fixed",
@@ -1237,7 +1238,7 @@ export default function Home() {
       const saved = localStorage.getItem("didarcafe_cart");
       if (saved) {
         const parsed = JSON.parse(saved);
-        const cartMap = new Map(
+        const cartMap = new Map<number, CartItem>(
           parsed.map((item: any) => [
             item.id,
             { item: item.item, qty: item.qty },
@@ -2055,6 +2056,14 @@ export default function Home() {
         {/* ═══ STICKY CART BAR ═══ */}
         {cartCount > 0 && !cartOpen && !selectedItem && (
           <div
+            role="button"
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setCartOpen(true);
+              }
+            }}
             onClick={() => setCartOpen(true)}
             style={{
               position: "fixed",
@@ -2133,17 +2142,7 @@ export default function Home() {
           />
         )}
         {toast && <Toast name={toast} onDone={() => setToast(null)} />}
-        <footer className="items-center hidden justify-center py-3">
-          <a
-            className="flex items-center gap-1 text-current no-underline"
-            href=""
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            <span className="text-muted">Powered by</span>
-            <p className="text-accent">Saeed & Jamshid</p>
-          </a>
-        </footer>
+
       </div>
     </>
   );

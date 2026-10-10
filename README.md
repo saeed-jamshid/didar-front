@@ -1,4 +1,6 @@
-# Next.js & HeroUI Template
+# Didar Cafe
+
+GitHub CI/CD and VPS setup: [docs/deployment.md](docs/deployment.md). Front deploys from `main`; backend lives in `../Didar-back` and deploys from `master`. Production uses npm/committed lockfile; deployment disabled until VPS setup + backup restore acceptance.
 
 This is a template for creating applications using Next.js 16 (app directory) and HeroUI (v3).
 

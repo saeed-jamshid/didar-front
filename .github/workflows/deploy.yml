@@ -1,0 +1,70 @@
+name: Didar frontend CI/CD
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: didar-front-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_API_URL: ''
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint && npm run typecheck && npm run test:deploy
+      - run: npm run build
+      - name: Package standalone release
+        run: |
+          set -euo pipefail
+          mkdir -p release/.next
+          cp -a .next/standalone/. release/
+          cp -a .next/static release/.next/static
+          cp -a public release/public
+          find release -type f -name '.env*' -delete
+          tar -czf front.tar.gz -C release .
+          sha256sum front.tar.gz > front.tar.gz.sha256
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: didar-front-${{ github.sha }}
+          path: |
+            front.tar.gz
+            front.tar.gz.sha256
+          retention-days: 7
+      - name: Deploy verified release
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.DEPLOY_ENABLED == 'true'
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          HOST: ${{ vars.DEPLOY_HOST }}
+          SSH_USER: ${{ vars.DEPLOY_USER }}
+          SSH_PORT: ${{ vars.DEPLOY_PORT }}
+        run: |
+          set -euo pipefail
+          [[ "$HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$SSH_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          [[ "$SSH_PORT" =~ ^[0-9]{1,5}$ ]] && ((10#$SSH_PORT > 0 && 10#$SSH_PORT <= 65535))
+          [[ -n "$SSH_KEY" && -n "$KNOWN_HOSTS" ]]
+          umask 077
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/didar_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/didar_hosts
+          trap 'rm -f ~/.ssh/didar_key ~/.ssh/didar_hosts' EXIT
+          opts=(-i ~/.ssh/didar_key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/didar_hosts")
+          release="$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          incoming="/opt/didar/front/incoming/$release"
+          ssh "${opts[@]}" -p "$SSH_PORT" "$SSH_USER@$HOST" "install -d -m 700 '$incoming'"
+          scp "${opts[@]}" -P "$SSH_PORT" front.tar.gz front.tar.gz.sha256 scripts/deploy-front.sh "$SSH_USER@$HOST:$incoming/"
+          ssh "${opts[@]}" -p "$SSH_PORT" "$SSH_USER@$HOST" "bash '$incoming/deploy-front.sh' '$release' 3006 http://127.0.0.1:8092"

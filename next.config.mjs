@@ -1,9 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    // TODO
-    ignoreBuildErrors: true,
-  },
+  output: "standalone",
   images: {
     // Only generate the sizes you actually use:
     // 75px card thumb (×1, ×2 DPR) + 480px modal hero (×1, ×2 DPR)

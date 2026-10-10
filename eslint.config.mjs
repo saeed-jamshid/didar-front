@@ -12,6 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import js from "@eslint/js";
 import { FlatCompat } from "@eslint/eslintrc";
+import next from "@next/eslint-plugin-next";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,10 +49,10 @@ export default defineConfig([globalIgnores([
         "plugin:prettier/recommended",
         "plugin:react-hooks/recommended",
         "plugin:jsx-a11y/recommended",
-        "plugin:@next/next/recommended",
     )),
 
     plugins: {
+        "@next/next": next,
         react: fixupPluginRules(react),
         "unused-imports": unusedImports,
         import: fixupPluginRules(_import),
@@ -82,12 +83,10 @@ export default defineConfig([globalIgnores([
             version: "detect",
         },
     },
-    rules: {
-         "@typescript-eslint/no-explicit-any": "off",
-       },
     files: ["**/*.ts", "**/*.tsx"],
 
     rules: {
+        ...next.configs.recommended.rules,
         "no-console": "warn",
         "react/prop-types": "off",
         "react/jsx-uses-react": "off",
