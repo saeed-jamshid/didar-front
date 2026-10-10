@@ -7,7 +7,7 @@ Domain: `didarplace.ir`. Owner manages visitor HTTPS/CDN; origin HTTP matches Pa
 ## GitHub environment `production` (both repos)
 
 Secrets: `DEPLOY_SSH_KEY` (dedicated Didar key), `DEPLOY_KNOWN_HOSTS` (VPS host key verified through existing SSH connection).
-Variables: `DEPLOY_HOST=130.185.76.124`, `DEPLOY_USER=deploy`, `DEPLOY_PORT=22`, `DEPLOY_ENABLED=false` until provisioning/import acceptance. Set exactly `true` to deploy.
+Variables: `DEPLOY_HOST=130.185.76.124`, `DEPLOY_USER=deploy`, `DEPLOY_PORT=22`, `DEPLOY_ENABLED=true` after verified provisioning/import. Set `false` to pause deployment; exactly `true` enables it.
 
 Push/PR runs CI. Only main/master pushes or manual runs on those branches can deploy; PRs cannot deploy. Pinned checkout/setup/artifact actions. Serialized workflows plus host filesystem locks. Archives/images have SHA256 checksums; private env files are not packaged. Front uses committed npm lockfile/Node 22, lint (non-mutating), typecheck, isolated rollback checks, Next standalone build. Backend uses Python 3.14/Django 6, only runtime dependencies imported by this app (no Pal Redis/Celery), Docker build, PostgreSQL 16 API tests, migration drift check and isolated rollback checks.
 
@@ -30,7 +30,15 @@ Push/PR runs CI. Only main/master pushes or manual runs on those branches can de
 6. Root runs backend `ops/install-proxy.sh`. Refuses existing Didar server block; checks both apps, adds ONLY Didar HTTP-origin config, validates Nginx and reloads. Failure removes new config/reloads prior setup. `/api/` + `/admin/` → Django; `/media/` + `/static/` → persistent files; `/` → Next. No Pal/TLS/CDN changes.
 7. Verify public HTTPS homepage/API/admin redirects, pagination URLs and media. Owner must restrict HTTP origin to trusted CDN and require visitor HTTPS. Nginx overwrites `X-Forwarded-Proto`; Django trusts proxy only because web is loopback-bound. HSTS/HTTPS redirect are CDN-owned; `check --deploy` warnings for these remain visible, not treated as failures.
 
-Current status: GitHub production settings/secrets configured, `DEPLOY_ENABLED=false`. Setup scripts/public key staged under `/home/saeed/didar-setup` via SSH `nexa`. VPS sudo needs interactive owner authentication; no live Didar apps, imports or proxy changes yet. Local front lint/typecheck/build + mocked front/back rollback checks passed; local PostgreSQL backup restore/API test passed. Fresh Docker image tests/migration-drift/no-env checks and restored API HTTPS-pagination/media checks passed; packaged Next standalone root/public-asset smoke passed. GitHub workflow acceptance must finish before enabling deployment.
+Current checkpoint (2026-10-10): both GitHub CI/CD deployments passed and `DEPLOY_ENABLED=true`; frontend3006 and backend8092 are live on loopback. Original backup restored/verified on isolated PostgreSQL16; encrypted pre-migration snapshot retained. PM2 startup active; Pal front/backend healthy. Owner installed Didar HTTP-origin Nginx route but **main domain/CDN cutover is deferred**; public domain still showed old build at inspection. TLS/CDN unchanged. Local lint/typecheck/build, fresh Docker/API/drift/no-secrets checks, mocked rollback and backup checksum/reference checks passed.
+
+## Temporary public IP preview
+
+Owner selected read-only HTTP preview: `http://130.185.76.124:8086` (unencrypted; no admin/login). Source `ops/didar-preview.conf`; root runs `ops/install-preview.sh`, staged with config in `/home/saeed/didar-setup`. Requires another interactive sudo command. Installer only adds8086 listener and, if UFW already active, allows8086/tcp; never changes main-domain route, TLS/CDN or disables firewall. External provider firewall may need owner approval too.
+
+Preview routes page/API/media/static together, blocks `/admin` + `/admin/` (404) and non-GET/HEAD requests (403). Backend canonical Host stays `didarplace.ir`, schemeHTTP; client rebases API pagination/image URLs to current browser origin when public API base is empty. Explicit separate API base retains original URLs. HTTPS production still uses Next image optimization; HTTP preview uses original images (larger files). Unit checks cover both schemes/explicit base/null media/fetch errors; local real-browser preview checked13categories, paginated items, loaded images, same-origin requests, no JS errors, admin404/write403. Do not use public HTTP for credentials or sensitive data.
+
+Remove preview after domain cutover: remove only `/etc/nginx/sites-enabled/didar-preview.conf` and `/etc/nginx/sites-available/didar-preview.conf`, run `nginx -t && systemctl reload nginx`; remove specifically added8086/tcp UFW rule if applicable. Do not remove main Didar/Pal configs or persistent data.
 
 ## Rollback/operations
 
@@ -42,7 +50,7 @@ For manual code recovery, select prior successful release from logs; use same ac
 Check scripts without live services:
 
 ```sh
-npm run lint && npm run typecheck && npm run test:deploy
+npm run lint && npm run typecheck && npm run test:deploy && npm run test:api
 # ../Didar-back:
 bash -n ops/*.sh
 bash ops/test-deploy-back.sh

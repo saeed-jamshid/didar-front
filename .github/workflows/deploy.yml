@@ -24,7 +24,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run lint && npm run typecheck && npm run test:deploy
+      - run: npm run lint && npm run typecheck && npm run test:deploy && npm run test:api
       - run: npm run build
       - name: Package standalone release
         run: |

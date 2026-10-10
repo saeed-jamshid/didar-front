@@ -71,6 +71,7 @@ function useIsMobile() {
 /* ════════════════════════════════════════════════
    ITEM IMAGE  — blur-up with Next.js <Image>
    ════════════════════════════════════════════════ */
+// ponytail: HTTP preview uses original images; add preview TLS for optimized thumbnails.
 function ItemImage({
   item,
   size = 75,
@@ -118,7 +119,8 @@ function ItemImage({
 
       {showReal ? (
         <Image
-          src={item.image_url?.replace(/^http:\/\//i, "https://") || ""}
+          src={item.image_url || ""}
+          unoptimized={item.image_url?.startsWith("http://")}
           alt={item.name}
           fill
           sizes={`${size}px`}
@@ -358,8 +360,7 @@ function ItemModal({
     return img.complete; // true = already in browser cache
   }, []);
 
-  const normalizedSrc =
-    item?.image_url?.replace(/^http:\/\//i, "https://") ?? "";
+  const normalizedSrc = item?.image_url ?? "";
   const [imgLoaded, setImgLoaded] = useState(() =>
     isAlreadyCached(normalizedSrc),
   );
@@ -367,7 +368,7 @@ function ItemModal({
   useEffect(() => {
     setAdded(false);
     setImgErr(false);
-    const src = item?.image_url?.replace(/^http:\/\//i, "https://") ?? "";
+    const src = item?.image_url ?? "";
     setImgLoaded(isAlreadyCached(src)); // pre-warm from cache instead of always false
   }, [item?.id]);
 
@@ -466,7 +467,8 @@ function ItemModal({
 
         {showReal ? (
           <Image
-            src={item.image_url?.replace(/^http:\/\//i, "https://") || ""}
+            src={item.image_url || ""}
+            unoptimized={item.image_url?.startsWith("http://")}
             alt={item.name}
             fill
             sizes="(max-width: 768px) 100vw, 480px"

@@ -3,7 +3,7 @@
    Central API client.
    • Reads NEXT_PUBLIC_API_URL from env (falls back to localhost)
    • Handles paginated DRF responses automatically
-   • Falls back to MOCK_DATA when backend is unreachable
+   • Keeps API pagination/media on current origin for same-domain deployments
    ───────────────────────────────────────────────────────────── */
 
 export interface Category {
@@ -45,6 +45,13 @@ interface PaginatedResponse<T> {
 const BASE_URL =
   (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 
+// Django may use canonical Host behind preview proxy; browser keeps its own origin.
+function apiUrl(url: string): string {
+  if (BASE_URL || typeof window === "undefined") return url;
+  const parsed = new URL(url, window.location.origin);
+  return `${window.location.origin}${parsed.pathname}${parsed.search}`;
+}
+
 /* ── Generic paginated fetcher – follows `next` links until done ── */
 async function fetchAllPages<T>(firstUrl: string): Promise<T[]> {
   const collected: T[] = [];
@@ -60,7 +67,7 @@ async function fetchAllPages<T>(firstUrl: string): Promise<T[]> {
       url = null;
     } else {
       collected.push(...data.results);
-      url = data.next ? data.next.replace(/^http:\/\//i, "https://") : null;
+      url = data.next ? apiUrl(data.next) : null;
     }
   }
 
@@ -74,5 +81,9 @@ export async function fetchCategories(): Promise<Category[]> {
 }
 
 export async function fetchItems(): Promise<MenuItem[]> {
-  return await fetchAllPages<MenuItem>(`${BASE_URL}/api/items/`);
+  const items = await fetchAllPages<MenuItem>(`${BASE_URL}/api/items/`);
+  return items.map((item) => ({
+    ...item,
+    image_url: item.image_url && apiUrl(item.image_url),
+  }));
 }

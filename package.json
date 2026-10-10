@@ -9,7 +9,8 @@
 		"start": "next start",
 		"lint": "eslint .",
 		"typecheck": "tsc --noEmit",
-		"test:deploy": "bash scripts/test-deploy-front.sh"
+		"test:deploy": "bash scripts/test-deploy-front.sh",
+		"test:api": "node --experimental-strip-types scripts/test-api.mjs"
 	},
 	"dependencies": {
 		"@heroui/react": "3.1.0",
