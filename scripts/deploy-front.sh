@@ -40,7 +40,8 @@ const fs = require('node:fs');
 const [cwd, port, file] = process.argv.slice(2);
 fs.writeFileSync(file, JSON.stringify({ apps: [{
   name: 'didar-front', cwd, script: `${cwd}/server.js`,
-  env: { NODE_ENV: 'production', HOSTNAME: '127.0.0.1', PORT: port },
+  // ponytail: serial image/fs work on low-RAM VPS; raise pool only after RAM headroom grows.
+  env: { NODE_ENV: 'production', HOSTNAME: '127.0.0.1', PORT: port, UV_THREADPOOL_SIZE: '1' },
   autorestart: true,
 }] }));
 JS

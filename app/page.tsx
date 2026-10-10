@@ -71,7 +71,6 @@ function useIsMobile() {
 /* ════════════════════════════════════════════════
    ITEM IMAGE  — blur-up with Next.js <Image>
    ════════════════════════════════════════════════ */
-// ponytail: HTTP preview uses original images; add preview TLS for optimized thumbnails.
 function ItemImage({
   item,
   size = 75,
@@ -92,6 +91,7 @@ function ItemImage({
       style={{
         width: size,
         height: size,
+        borderRadius: radius,
         flexShrink: 0,
         overflow: "hidden",
         position: "relative",
@@ -120,7 +120,6 @@ function ItemImage({
       {showReal ? (
         <Image
           src={item.image_url || ""}
-          unoptimized={item.image_url?.startsWith("http://")}
           alt={item.name}
           fill
           sizes={`${size}px`}
@@ -352,25 +351,7 @@ function ItemModal({
   const [direction, setDirection] = useState<"next" | "prev">("next");
 
   const [imgErr, setImgErr] = useState(false);
-  // Check if browser already has this image cached
-  const isAlreadyCached = useCallback((src: string) => {
-    if (typeof window === "undefined") return false;
-    const img = new window.Image();
-    img.src = src;
-    return img.complete; // true = already in browser cache
-  }, []);
-
-  const normalizedSrc = item?.image_url ?? "";
-  const [imgLoaded, setImgLoaded] = useState(() =>
-    isAlreadyCached(normalizedSrc),
-  );
-
-  useEffect(() => {
-    setAdded(false);
-    setImgErr(false);
-    const src = item?.image_url ?? "";
-    setImgLoaded(isAlreadyCached(src)); // pre-warm from cache instead of always false
-  }, [item?.id]);
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   useEffect(() => {
     setAdded(false);
@@ -468,7 +449,6 @@ function ItemModal({
         {showReal ? (
           <Image
             src={item.image_url || ""}
-            unoptimized={item.image_url?.startsWith("http://")}
             alt={item.name}
             fill
             sizes="(max-width: 768px) 100vw, 480px"
@@ -733,7 +713,7 @@ function ItemModal({
                 ? `#f5dada88`
                 : outOfHours
                   ? `#f5ead888`
-                  : `url('/Asset 6@9x.png') right/cover, ${B.cream}`,
+                  : `url('/card-tree.png') right/cover, ${B.cream}`,
               backgroundBlendMode: unavail || outOfHours ? "normal" : "overlay",
               borderRadius: 10,
               padding: "4px 13px",
@@ -1813,7 +1793,7 @@ export default function Home() {
                           style={{
                             background: unavail
                               ? `${B.sandLight}77`
-                              : `url('/Asset 6@9x.png') right/cover, ${B.cream}`,
+                              : `url('/card-tree.png') right/cover, ${B.cream}`,
                             backgroundBlendMode: unavail ? "normal" : "overlay",
                             borderRadius: 18,
                             display: "flex",

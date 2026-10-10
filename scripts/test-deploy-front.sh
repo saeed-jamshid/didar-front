@@ -13,7 +13,7 @@ printf '%s\n' "$*" >> "$DIDAR_FRONT_ROOT/pm2.log"
 if [[ "$1" == delete ]]; then
   rm -f "$DIDAR_FRONT_ROOT/running-release"
 elif [[ "$1" == start ]]; then
-  node -e 'const fs=require("node:fs"); const app=JSON.parse(fs.readFileSync(process.argv[1])).apps[0]; if(app.script !== `${app.cwd}/server.js`) process.exit(1); fs.writeFileSync(process.argv[2],app.cwd)' "$2" "$DIDAR_FRONT_ROOT/running-release"
+  node -e 'const fs=require("node:fs"); const app=JSON.parse(fs.readFileSync(process.argv[1])).apps[0]; if(app.script !== `${app.cwd}/server.js` || app.env.UV_THREADPOOL_SIZE !== "1") process.exit(1); fs.writeFileSync(process.argv[2],app.cwd)' "$2" "$DIDAR_FRONT_ROOT/running-release"
 fi
 # Model PM2 reload retaining its old absolute script path.
 SH

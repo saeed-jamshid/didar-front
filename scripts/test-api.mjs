@@ -1,4 +1,21 @@
 import assert from 'node:assert/strict';
+import sharp from 'sharp';
+import { fileURLToPath } from 'node:url';
+import nextConfig from '../next.config.mjs';
+import { hasRemoteMatch } from 'next/dist/shared/lib/match-remote-pattern.js';
+
+const texture = await sharp(fileURLToPath(new URL('../public/card-tree.png', import.meta.url))).metadata();
+assert.equal(texture.width, 512);
+assert.equal(texture.height, 2212);
+assert.equal(texture.hasAlpha, true);
+for (const [url, allowed] of [
+  ['http://130.185.76.124:8086/media/items/a.jpg', true],
+  ['https://didarplace.ir/media/items/a.jpg', true],
+  ['http://130.185.76.124:8087/media/items/a.jpg', false],
+  ['http://130.185.76.124:8086/api/items/', false],
+  ['http://127.0.0.1:8086/media/items/a.jpg', false],
+]) assert.equal(hasRemoteMatch([], nextConfig.images.remotePatterns, new URL(url)), allowed);
+console.log('Restored texture and scoped preview/production image allowlist passed');
 
 // No network: exercise real client pagination/media normalization on HTTP + HTTPS.
 const previous = { window: globalThis.window, fetch: globalThis.fetch, base: process.env.NEXT_PUBLIC_API_URL };

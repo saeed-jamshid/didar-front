@@ -17,6 +17,12 @@ const nextConfig = {
 
     remotePatterns: [
       {
+        protocol: "http",
+        hostname: "130.185.76.124",
+        port: "8086",
+        pathname: "/media/**",
+      },
+      {
         protocol: "https",
         hostname: "didarplace.ir",
         pathname: "/media/**", // tighter than /**, only allow media uploads
